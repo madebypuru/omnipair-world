@@ -1,13 +1,13 @@
 {
-	"mode": "browser",
 	"test": {
 		"move_keys": [
 			"KeyW"
+		],
+		"checks": [
+			"world-loads",
+			"he-walks",
+			"stone-opens",
+			"beacon-lights"
 		]
-	},
-	"block": {
-		"controls": [],
-		"presets": [],
-		"triggers": []
 	}
 }

@@ -8,7 +8,8 @@
 //   groundRings                                    an endless ground of dabs that never shift as the eye moves
 //   pinDabs                                        dabs pinned to any mesh, rigged or not, and carried with it
 //   createShade                                    where the sun reaches: the still world once, a moving thing each frame
-//   createFrame                                    the canvas: sun in the mist, the weave, the varnish
+//   createFrame                                    the canvas: sun in the mist, the weave, the varnish, the dither
+//   DITHER, ditherUniforms                         the colour ordered dither on its own, for any shader
 export { createShared, COMMON, SUN, WIND, EXTENT, LAND_RES } from './common.js';
 export { createBrushSheet, BRUSH_COLS, BRUSH_ROWS } from './brush.js';
 export { dabMaterial, dabGeometry, dabMesh } from './dabs.js';
@@ -16,3 +17,4 @@ export { groundRings, RING } from './ground.js';
 export { pinDabs } from './pins.js';
 export { createShade } from './shade.js';
 export { createFrame } from './finish.js';
+export { DITHER, ditherUniforms } from './dither.js';

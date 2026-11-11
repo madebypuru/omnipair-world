@@ -1,6 +1,6 @@
 // Stills of the built page, headless and muted, with the clock stepped by hand.
-//   node tools/shots.mjs [names...] [--out shots/work] [--query "shafts=0"] [--size 1920x1080]
-// With no names, every view below. Each view places the wanderer, lets the world settle, and saves a PNG.
+//   node tools/shots.mjs [names...] [--out shots] [--query "shafts=0"] [--size 1920x1080]
+// With no names, every view below. Each view places the wanderer, lets the world settle, and saves a JPEG.
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, statSync } from 'node:fs';
@@ -14,24 +14,22 @@ const here = resolve(fileURLToPath(import.meta.url), '..', '..');
 const args = process.argv.slice(2);
 const flag = (name, fallback) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : fallback; };
 const names = args.filter((a, i) => !a.startsWith('--') && !(args[i - 1] ?? '').startsWith('--'));
-const out = resolve(here, flag('out', 'shots/work'));
+const out = resolve(here, flag('out', 'shots'));
 const [width, height] = flag('size', '1920x1080').split('x').map(Number);
 mkdirSync(out, { recursive: true });
 
 // name: [x, z, look-at x, look-at z, { run: seconds of running first, pitch, dist, yaw: turn of the eye, view: [eye, target] }]
 export const VIEWS = {
-  start: [0, 78, -2, 50, { run: 0 }],
-  running: [-6, 58, 3, 32, { run: 2.2 }],
-  stripes: [4, 30, 10, 6, { run: 1.2, pitch: 0.2 }],
-  birches: [8, 4, 3, -20, { run: 1.5 }],
-  side: [2, -22, -5, -44, { run: 1.6, yaw: 1.2, dist: 7.5 }],
-  low: [-4, -46, 4, -68, { run: 1.4, pitch: -0.12, dist: 5 }],
-  clearing: [5, -72, 12, -94, { run: 1.2 }],
-  oak: [10, -84, 14, -98, { run: 0, pitch: -0.22, dist: 8 }],
-  close: [1, 60, -4, 40, { run: 1.8, dist: 3.4, pitch: 0.1 }],
-  back: [8, -80, 4, -60, { run: 1.5 }],
-  high: [0, 70, -2, 50, { run: 0, view: [[3, 15, 78], [-2, 0, 38]] }],
-  ground: [0, 70, -2, 50, { run: 0, view: [[4, 2.2, 74], [-6, 0, 40]] }],
+  // from the start, walking north along the clifftop with the sea and the sun on the left
+  'coast-start': [29.8, 300, 29.8, 270, { run: 1.2 }],
+  // on the edge, looking west over it to the sea and the sun
+  'coast-west': [14, 110, -66, 54, { run: 0, pitch: 0.22, dist: 7 }],
+  // the stacks and the arch's feet below the clifftop
+  'coast-stacks': [17, 70, -40, -20, { run: 0, pitch: 0.18, dist: 7 }],
+  // the point at the north end
+  'coast-point': [-8, -85, -19, -150, { run: 0.8 }],
+  // the same from above, to read the whole headland
+  'coast-high': [29.8, 300, 29.8, 270, { run: 0, view: [[140, 160, 360], [0, 20, 60]] }],
 };
 
 // --view "x,z,fx,fz,run,dist,pitch,yaw" --name n: a view given on the command line
@@ -53,10 +51,10 @@ const server = createServer((req, res) => {
   createReadStream(file).pipe(res);
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const url = `http://127.0.0.1:${server.address().port}/?capture&nopad&${/scene=/.test(flag('query', '')) ? '' : 'scene=autumn&'}${flag('query', '')}`;
+const url = `http://127.0.0.1:${server.address().port}/?capture&nopad&${flag('query', '')}`;
 
 const exe = process.env.CHROME; // a Chromium of your own; without it, Playwright's
-const browser = await chromium.launch({ executablePath: exe, headless: true, args: ['--mute-audio', '--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-gpu'] });
+const browser = await chromium.launch({ executablePath: exe, headless: true, args: ['--mute-audio', '--ignore-gpu-blocklist', `--use-angle=${process.platform === 'darwin' ? 'metal' : 'd3d11'}`, '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
 const problems = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') problems.push(`${m.type()}: ${m.text().slice(0, 1500)}`); });
@@ -97,7 +95,7 @@ for (const name of names.length ? names : Object.keys(VIEWS)) {
     const p = L.player.feet;
     return { at: [p.x.toFixed(1), p.y.toFixed(2), p.z.toFixed(1)], mode: L.player.mode, speed: L.player.speed.toFixed(2) };
   }, [...v, cam, trail, wait, settle, firstPerson]);
-  await page.screenshot({ path: join(out, `${name}.png`) });
+  await page.screenshot({ path: join(out, `${name}.jpg`), type: 'jpeg', quality: 88 });
   console.log(`shot ${name}`, JSON.stringify(info));
 }
 if (problems.length) console.log('problems:\n' + [...new Set(problems)].slice(0, 12).join('\n'));

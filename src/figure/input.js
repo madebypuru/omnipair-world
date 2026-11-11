@@ -13,9 +13,11 @@ export class Input {
     this.sensitivity = 0.0022;
     this.override = null; // scripted input for captures
     this.lockable = true;
+    this.invertY = false;
+    this.paused = false; // a menu has the keys: none are read, and Tab, the arrows and Space keep their usual jobs
     const typing = () => document.activeElement?.tagName === 'INPUT';
     const down = (e) => {
-      if (typing()) return;
+      if (typing() || this.paused) return;
       if (['Space', 'ArrowUp', 'ArrowDown', 'Tab', 'AltLeft', 'AltRight'].includes(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
@@ -81,6 +83,14 @@ export class Input {
       this.pad.a = btn(0); this.pad.l3 = btn(10);
       if (rx || ry || pl > 0.01 || btn(0)) s.device = 'pad';
     }
+    if (this.invertY) s.look.y = -s.look.y;
     return s;
+  }
+
+  /** Lets go of every key and drops the mouse's movement so far, as a menu opens. */
+  release() {
+    this.keys.clear();
+    this.pressed.clear();
+    this.mouse.x = this.mouse.y = this.mouse.wheel = 0;
   }
 }

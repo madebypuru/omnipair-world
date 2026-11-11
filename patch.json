@@ -1,19 +1,19 @@
 {
-	"project": "blendi/oil-paint",
-	"version": "1.1.1",
+	"project": "puru/omnipair-world",
+	"version": "0.1.0",
 	"channel": "private",
 	"files": "dist",
 	"recipe": {
-		"mode": "browser",
 		"test": {
 			"move_keys": [
 				"KeyW"
+			],
+			"checks": [
+				"world-loads",
+				"he-walks",
+				"stone-opens",
+				"beacon-lights"
 			]
-		},
-		"block": {
-			"controls": [],
-			"presets": [],
-			"triggers": []
 		}
 	}
 }

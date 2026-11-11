@@ -12,6 +12,7 @@
 import * as THREE from 'three';
 import { COMMON } from './common.js';
 import { BRUSH_COLS, BRUSH_ROWS } from './brush.js';
+const SHEET = [128 * BRUSH_COLS, 256 * BRUSH_ROWS];
 
 const VERT = (head, body) => /* glsl */ `
 ${COMMON}
@@ -127,9 +128,8 @@ layout(location = 0) out vec4 outC;
 void main() {
   vec4 t = texture(tBrush, vUv);
   if (t.g < 0.3) discard;
-  vec2 e = vec2(1.5 / 512.0, 0.0);
-  float hu = texture(tBrush, vUv + e.xy).r - texture(tBrush, vUv - e.xy).r;
-  float hv = texture(tBrush, vUv + e.yx).r - texture(tBrush, vUv - e.yx).r;
+  float hu = texture(tBrush, vUv + vec2(1.5 / ${SHEET[0]}.0, 0.0)).r - texture(tBrush, vUv - vec2(1.5 / ${SHEET[0]}.0, 0.0)).r;
+  float hv = texture(tBrush, vUv + vec2(0.0, 1.5 / ${SHEET[1]}.0)).r - texture(tBrush, vUv - vec2(0.0, 1.5 / ${SHEET[1]}.0)).r;
   // the paint stands up off the canvas and the room's light, from the upper left, rakes across it
   vec2 g = vAxis.xy * hu + vAxis.zw * hv;
   float rake = 0.5 * g.x - 0.7 * g.y;
@@ -140,7 +140,8 @@ void main() {
     col = mix(col * uGlazeMul + uGlazeAdd, col, lit);
   }
   col *= mix(0.95, 1.04, t.r);
-  col *= 1.0 + rake * 1.25 * uImpasto;
+  // the shadow side of a lip is fainter than its lit side: the paint stands low and the room's light is broad
+  col *= 1.0 + (rake > 0.0 ? 1.25 : 0.6) * rake * uImpasto;
   col += vec3(1.0, 0.97, 0.9) * pow(max(rake, 0.0), 2.0) * 1.2 * uImpasto;
   outC = vec4(col, smoothstep(0.3, 0.62, t.g));
 }

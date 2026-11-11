@@ -83,8 +83,8 @@ export const DAY = {
   EYES: [[0.2, 0.15, 0.14], [0.12, 0.09, 0.1], [0.06, 0.05, 0.07]],
 };
 
-/** palettes: any of DAY's to paint him otherwise (another hour, other clothes). */
-export async function createFigure(shared, onProgress, palettes = {}) {
+/** palettes: any of DAY's to paint him otherwise (another hour, other clothes). cells: the brush sheet's marks his dabs use. */
+export async function createFigure(shared, onProgress, palettes = {}, { cells = [0, 4] } = {}) {
   const { CLOAK, HAT, SHIRT, TROUSERS, SKIN, BOOTS, HAIR, EYES } = { ...DAY, ...palettes };
   const own = (p) => `vec3(${p[3] ?? p[0]})`;
   const man = await loadMan({ base: './figure/', onProgress });
@@ -138,7 +138,7 @@ export async function createFigure(shared, onProgress, palettes = {}) {
           d.seed = float(gl_InstanceID); d.lift = 0.4;
         }`,
       uniforms: { uHat: { value: hat.matrixWorld } },
-      minPx: [3, 6], maxPx: [200, 400], cells: [0, 4],
+      minPx: [3, 6], maxPx: [200, 400], cells,
     }), 5);
     dabs.add(mesh);
   }
@@ -185,7 +185,7 @@ export async function createFigure(shared, onProgress, palettes = {}) {
         d.c1 = hazed(c, aPos); d.c2 = hazed(c * 1.3 + vec3(0.0, 0.02, 0.04), aPos);
         d.seed = float(gl_InstanceID); d.lift = 0.2;
       }`,
-    minPx: [3, 7], maxPx: [200, 500], cells: [0, 4],
+    minPx: [3, 7], maxPx: [200, 500], cells,
   }), 5);
   dabs.add(cloakDabs);
 
@@ -205,7 +205,7 @@ export async function createFigure(shared, onProgress, palettes = {}) {
   });
   if (shoes) parts.push({ mesh: shoes, count: 70, style: () => ({ pal: 3, size: [0.045, 0.085], dir: FWD }) });
   if (hair) parts.push({ mesh: hair, count: 50, style: () => ({ pal: 4, size: [0.035, 0.07], dir: UP }) });
-  const bodyDabs = pinDabs(shared, [SHIRT, TROUSERS, SKIN, BOOTS, HAIR], parts);
+  const bodyDabs = pinDabs(shared, [SHIRT, TROUSERS, SKIN, BOOTS, HAIR], parts, { cells: cells[0] === 0 ? [0, 6] : cells });
   dabs.add(bodyDabs.mesh);
 
   function updateCloak(dt, air, ground) {

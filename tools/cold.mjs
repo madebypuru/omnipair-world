@@ -42,7 +42,7 @@ for (let run = 1; run <= Number(runs); run++) {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: cpu });
   const started = Date.now();
   await page.goto(url);
-  await page.waitForFunction(() => window.__block?.ready, null, { timeout: 180000, polling: 50 });
+  await page.waitForFunction(() => window.lab?.ready, null, { timeout: 180000, polling: 50 });
   const ready = (Date.now() - started) / 1000;
   const slowSince = async () => page.evaluate(() => window.__frames.slow.splice(0));
   const loading = await slowSince();
@@ -53,7 +53,7 @@ for (let run = 1; run <= Number(runs); run++) {
   await page.waitForTimeout(2500);
   await page.keyboard.up('KeyW');
   const walking = await slowSince();
-  const laps = await page.evaluate(() => window.__block.timings);
+  const laps = await page.evaluate(() => window.lab.timings);
   console.log(JSON.stringify({ run, ready: Number(ready.toFixed(1)), loading: loading.filter((s) => parseInt(s, 10) > 300), standing, walking, laps, errors: errors.slice(0, 5) }));
   await browser.close();
 }

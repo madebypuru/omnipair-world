@@ -1,8 +1,9 @@
 // The canvas. The world is painted into a picture with a depth beside it; this then lays in the one thing dabs
 // can't do, the sun standing in the mist between the trunks, and finishes the surface: the weave of the canvas
-// under thin paint, and a little varnish.
+// under thin paint, a little varnish, and last the colour dither (dither.js).
 import * as THREE from 'three';
 import { COMMON } from './common.js';
+import { DITHER, ditherUniforms } from './dither.js';
 
 export function createFrame(renderer, shared, { samples = 4 } = {}) {
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -20,6 +21,7 @@ export function createFrame(renderer, shared, { samples = 4 } = {}) {
     uSteps: { value: 22 },
     uCanvas: { value: 1 },
     uSize: { value: size.clone() },
+    ...ditherUniforms(),
   };
   const material = new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
@@ -31,6 +33,7 @@ export function createFrame(renderer, shared, { samples = 4 } = {}) {
       void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
     fragmentShader: /* glsl */ `
       ${COMMON}
+      ${DITHER}
       uniform sampler2D tColor;
       uniform sampler2D tDepth;
       uniform mat4 uInvViewProj;
@@ -90,7 +93,7 @@ export function createFrame(renderer, shared, { samples = 4 } = {}) {
         col = min(col, 0.8) + over / (1.0 + over * 5.0);
         // varnish: a little more depth in the darks, the lights left alone
         col = mix(col, col * col * (3.0 - 2.0 * col), 0.22);
-        outC = vec4(col, 1.0);
+        outC = vec4(dither(col, gl_FragCoord.xy), 1.0);
       }`,
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);

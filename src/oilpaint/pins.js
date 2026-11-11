@@ -8,7 +8,7 @@ import { dabMaterial, dabGeometry, dabMesh } from './dabs.js';
  * palettes: [[light, half-tone, shade, (its own colour, for a lamp's light)], ...]. parts: [{ mesh, count, accept(p), style(p, n) -> { pal, size: [across, along], dir } }],
  * where p and n are a point of the mesh and its normal in the pose it was made in.
  */
-export function pinDabs(shared, palettes, parts) {
+export function pinDabs(shared, palettes, parts, { cells = [0, 6] } = {}) {
   let seed = 9151;
   const rand = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
   const pins = [];
@@ -74,7 +74,7 @@ export function pinDabs(shared, palettes, parts) {
         d.lift = 0.3;
         d.turnabout = 1.0;
       }`,
-    minPx: [2.5, 4], maxPx: [200, 400], cells: [0, 6],
+    minPx: [2.5, 4], maxPx: [200, 400], cells,
   }), 5);
 
   return {

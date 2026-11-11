@@ -1,9 +1,13 @@
-# Licence notes: oil paint
+# Licence notes: Omnipair World
+
+Omnipair World is a remix of `blendi/oil-paint`. Its own parts are listed first.
 
 Code MIT. Art CC0 1.0. Checked 2026-11-11.
 
 | Part | Where it came from | Licence | In this repo? |
 |---|---|---|---|
+| `src/coast/` except `brand/` (the headland, sea, sky, arch, flowers, the stones and great mark, the panel) | Written for Omnipair World. Every stroke is made in code; no picture, model or sound is loaded for it | MIT; what it draws CC0 | Yes |
+| Omnipair's marks: the symbol, wordmark and lockup, the Leverage, Lending and Trade app icons and their colours (`src/coast/brand/`, `src/coast/brand.js`, the lockup inline in `index.html`, and the shapes `src/coast/omni.js` builds from them) | Omnipair's brand guideline (Figma, Brand Guideline 2026), exported to `../brand/figma/` and copied clean by `tools/brand-svgs.mjs` | Omnipair's trademarks and artwork, all rights reserved; not covered by the MIT licence or CC0 | Yes |
 | `src/oilpaint/` (dabs, brush, ground, pins, shade, canvas) | Written by Patch for this block | MIT | Yes |
 | `src/world/` (land, floor, trees, sky, leaves) | Written by Patch for this demo. Every tree, leaf and brush mark is made in code; no picture or model is loaded for them | MIT; what it draws CC0 | Yes |
 | `src/night/` (the ridge, snow, spruces, sky and aurora, water and ranges, the cabin and all in it, the lantern, tracks, snow in the air) | Written by Patch for this demo. Every stroke of it is made in code; no picture, model or sound is loaded for it | MIT; what it draws CC0 | Yes |
@@ -13,10 +17,10 @@ Code MIT. Art CC0 1.0. Checked 2026-11-11.
 | `public/figure/starter-man.glb` | Patch's starter man: built with MPFB2 from MakeHuman system assets (the body, `male_casualsuit06`, `shoes05`, `short01` hair), rigged by Patch onto the Universal Animation Library's skeleton. Its pictures are taken out here, since the demo paints him | CC0 1.0 (MakeHuman's system assets are released as CC0) | Yes, in Git LFS |
 | `public/figure/starter-man-clips.glb` | Quaternius' Universal Animation Library 1 and 2 (idle, walk, jog, strafes, turns, jumps), and Patch's own clips made with anymove (run, sprint, starts, stops, the tired idle) | CC0 1.0 (Quaternius); CC0 1.0, Patch | Yes, in Git LFS |
 | `src/figure/rapier/` | Rapier 0.21.0, `@dimforge/rapier3d-compat`, as vendored in patch-lab | Apache-2.0, `src/figure/rapier/LICENSE`, shipped as `RAPIER-LICENSE.txt` | Yes |
-| `lib/patch-block.js` | Patch's block helper, from staging.patch.gg/patch-block.js | Patch's, shipped with every block | Yes |
+| `lib/patch-block.js` | Patch's block helper, from staging.patch.gg/patch-block.js. Used by the two oil-paint demo scenes, not by the coast | Patch's, shipped with every block | Yes |
 | `shots/` | Stills of this demo | CC0 1.0, Patch | Yes, in Git LFS |
 | three.js 0.186.1 | npm | MIT | Installed by npm; its notice ships as `THIRD-PARTY-NOTICES.md` |
 
-No picture is stored or copied, and there is no sound. The aurora scene began from one photograph its author showed as a mood: a small figure with a light under a snowy peak and a green aurora. Nothing of that photograph is in the repo, and its place was not reproduced: the ridge, the horns, the fjord, the cabin and the sky here are this demo's own, made in code.
+No picture is stored or copied apart from Omnipair's own marks above, and there is no sound. The coast was painted to match Omnipair's reference paintings (`../brand/reference/`); none of them is in the repo or the release. The aurora scene began from one photograph its author showed as a mood: a small figure with a light under a snowy peak and a green aurora. Nothing of that photograph is in the repo, and its place was not reproduced: the ridge, the horns, the fjord, the cabin and the sky here are this demo's own, made in code.
 
 **Nothing here has no stated source.**

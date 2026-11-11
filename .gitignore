@@ -11,3 +11,7 @@ shots/*
 .test/
 dist-night/
 .night-build.log
+dist-sea/
+dist-map/
+dist-boards/
+.claude/

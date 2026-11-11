@@ -15,6 +15,8 @@ export class Follow {
     this.lift = 0.85;
     this.pivot = new THREE.Vector3();
     this.free = null; // { position, target }: a fixed view, for stills
+    this.pitchRange = [-0.75, 1.2]; // how far the eye may go under him and over him, radians
+    this.reach = [2.8, 13]; // nearest and farthest the wheel takes it, metres
     this.sink = 0; // when the ground lifts the eye, how far the look comes down with it to keep him in the picture (0..1)
   }
 
@@ -22,8 +24,9 @@ export class Follow {
     const cam = this.camera;
     if (this.free) { cam.position.copy(this.free.position); cam.lookAt(this.free.target); return; }
     this.yaw -= look.x;
-    this.pitch = THREE.MathUtils.clamp(this.pitch + look.y, -0.75, 1.2);
-    this.want = THREE.MathUtils.clamp(this.want + zoom * 0.5, 2.8, 13);
+    this.pitch = THREE.MathUtils.clamp(this.pitch + look.y, this.pitchRange[0], this.pitchRange[1]);
+    // each step of the wheel is a share of the distance, so far out it still moves
+    this.want = THREE.MathUtils.clamp(this.want * (1 + zoom * 0.09) + zoom * 0.12, this.reach[0], this.reach[1]);
     const goal = new THREE.Vector3(target.x, target.y + 1.35, target.z);
     if (this.pivot.lengthSq() === 0) this.pivot.copy(goal);
     this.pivot.x = damp(this.pivot.x, goal.x, 10, dt);

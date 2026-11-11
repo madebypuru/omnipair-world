@@ -12,7 +12,7 @@ import { COMMON } from '../oilpaint/common.js';
 import { dabMaterial, dabGeometry, dabMesh } from '../oilpaint/dabs.js';
 import { rng } from '../world/noise.js';
 
-export function createKit(shared, { palettes, head = '', light, origin = [0, 0, 0], seed = 1, haze = false, order = 3 }) {
+export function createKit(shared, { palettes, head = '', light, origin = [0, 0, 0], seed = 1, haze = false, order = 3, cells = [0, 8] }) {
   const rand = rng(seed);
   const names = Object.keys(palettes);
   const index = (name) => { const i = names.indexOf(name); if (i < 0) throw new Error(`no palette ${name}`); return i; };
@@ -229,7 +229,7 @@ export function createKit(shared, { palettes, head = '', light, origin = [0, 0, 
           d.nrm = Nn;
           d.height = 0.004 + aMore.y + 0.01 * r.z;
         }`,
-      minPx: [1.5, 3], maxPx: [4000, 4000], cells: [0, 8],
+      minPx: [1.5, 3], maxPx: [4000, 4000], cells,
     }), order);
     const group = new THREE.Group();
     group.add(under, strokes);

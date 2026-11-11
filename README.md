@@ -1,24 +1,59 @@
 ---
-kind: effect
+kind: game
 engine: three.js
 ---
 
-# Oil paint
+# Omnipair World
 
-Draws a three.js scene as thick oil paint, stroke by stroke: every leaf, trunk, drift of snow, ray of the aurora and fold of cloth is a dab of the brush pinned to the world, so the paint stays on things as you move. The demo is two walks with the same wanderer: a ridge of snow under the aurora, with a cabin at the end of it, and an autumn wood.
+Walk a clifftop at sunset, painted stroke by stroke like a palette-knife oil and seen through a colour dither. Three stones along the way stand for Omnipair's three products, Leverage, Lending and Trade, each painted as its app icon. Read all three and the great mark on the point, Omnipair's symbol, turns cream and lights up. It runs in the browser and is published on Patch.
 
-![A cloaked wanderer with a lantern on a snow ridge under the aurora, a horn of rock ahead](shots/readme.jpg)
+![The wanderer on the clifftop among poppies, the sea stacks and the sunset over the sea](shots/coast-stacks-dither.jpg)
 
-**In the demo:** click to look with the mouse, WASD to move, Shift to sprint, Space to jump, the wheel to step the eye back or in, H hides the hint. A gamepad works too. The two buttons in the corner change the picture. There is no sound.
+## Controls
 
-- **Aurora.** You start among spruces under snow, come out onto a knoll under the whole sky, and follow the crest north to a cabin at the foot of the horn. V looks through his eyes, and from the cabin's doorstep on the demo does that for you. Look up.
-- **Autumn wood.** A worn way through beech, birch and oak to a clearing.
+| Key | Does |
+|---|---|
+| Click, then mouse | Look |
+| WASD | Walk |
+| Shift | Sprint |
+| Space | Jump |
+| Alt, Caps Lock | Walk slowly |
+| F, right mouse | Strafe |
+| Wheel | Zoom |
+| E | Read a stone, and close it again |
+| M | Map |
+| J | Goals |
+| O, Esc | Options: picture, camera, travel, progress and every key |
+| V | Through his eyes |
+| H | Hide the hint |
 
-![The cabin's fire, seen through his eyes](shots/cabin.jpg)
+Esc shuts an open board, map or goals list first. Inside Patch's player Esc is Patch's own, so there it is O or the gear top right. Settings are remembered; `?dither=0`, `?dmatrix=16`, `?dsize=`, `?quality=`, `?impasto=`, `?sens=`, `?invert=1` and `?fov=` set them for one visit without saving.
 
-![The autumn wood](shots/autumn.jpg)
+A gamepad works too: left stick moves, right stick looks, A jumps, L3 or RB sprints, LT strafes, d-pad zooms. The game pauses when its window is hidden or loses focus.
 
-It is a starting point, not a filter. You can't lay it over a finished game: each thing in your scene is given three mixes of colour and a way for its strokes to run. Start from one of the two scenes, change it, replace it.
+## What is where
+
+The scene lives in `src/coast/`. The painter it uses is `src/oilpaint/`, described below.
+
+| File | Holds |
+|---|---|
+| `main.js` | Start-up, the game loop, pause, `window.lab` for headless stills, and the `?patch-test=1` autopilot |
+| `land.js` | The ground's heights and land map, the sun (`SUN`), and where the arch (`ARCH`) and stacks stand |
+| `paint.js` | The palette in GLSL: turf, rock, wet rock, flowers and the sky |
+| `sky.js` | The sky dome, its knife slabs, the clouds and the sun |
+| `sea.js` | The far water, far headlands, near water and foam |
+| `ground.js` | Turf and rock strokes, and the flowers |
+| `arch.js` | The sea arch |
+| `brand.js`, `brand/` | Omnipair's symbol, lockup and three app icons (copied clean from the Figma export by `tools/brand-svgs.mjs`), the product colours and the panel words |
+| `omni.js`, `hud.js` | The three stones, the great mark, its light column, and the glass on screen: count, prompt, panel, lockup |
+
+`tools/shots.mjs` and `tools/omni-shots.mjs` render stills from the built game (`npm run build` first).
+
+## Credits
+
+Built on `blendi/oil-paint` (MIT), whose painter, figure rig and tools this repo keeps. The wanderer is Patch's CC0 starter man with Quaternius' CC0 animations. `LICENCE-NOTES.md` lists every part and its licence.
+
+# The painter (from blendi/oil-paint)
 
 ## The idea
 
@@ -88,11 +123,29 @@ In `makeDab` you have `paint3` (the three mixes), `jitter` (broken colour), `haz
 
 For **made things** (a cabin, furniture, pots) there is a kit in `src/night/kit.js`: give it flat faces or any geometry with the name of a palette and it keeps the faces as an underpainting and lays strokes on them along the grain, with logs and planks in courses. `src/night/cabin.js`, `roof.js` and `details.js` are a whole house built with it.
 
+## The dither
+
+The last step of `finish.js` is a colour ordered dither, the Omnipair look (`../brand/dither.md`): Bayer 8x8,
+brightness x1.1 and contrast 1.18 about mid grey, then each channel quantised to 7 levels against the Bayer
+threshold. It lives on its own in `src/oilpaint/dither.js` as a GLSL string, `DITHER`, with
+`vec3 dither(vec3 col, vec2 fragCoord)` and its uniforms; no textures and no integer ops, so it pastes into a p5.js
+shader as is. Size is in buffer pixels (`gl_FragCoord`): size 2 is a 2x2 cell at a pixel ratio of 1 and at
+`?quality=low`, and smaller on screen when the pixel ratio is above 1.
+
+- `?dither=0` off, `?dmatrix=16` Bayer 16x16 instead of 8x8 (the brand's Shaders page), `?dsize=3` cell size,
+  `?dlevels=4` tones per channel, `?dbright=1` and `?dcontrast=1` brightness and contrast. All are uniforms on
+  `frame.uniforms` (`uDither`, `uDitherMatrix`, `uDitherSize`, `uDitherLevels`, `uDitherBrightness`,
+  `uDitherContrast`, `uDitherMono`, `uDitherMonoColor`).
+- `node tools/omni-shots.mjs dither` renders one view at 8x8 and at 16x16 with the brand page's settings (levels 7,
+  brightness 1, contrast 1) to `shots/dither-8.jpg` and `shots/dither-16.jpg`.
+- `node tools/dither-check.mjs` runs the same string on the plain brand paintings and writes
+  `shots/dither-2.png` and `shots/dither-4.png`, with the tone error against the dithered references.
+
 ## What is where
 
 | | |
 |---|---|
-| `src/oilpaint/` | The painter: `dabs.js` (the dab), `brush.js` (the marks), `common.js` (shared uniforms and GLSL), `ground.js` (the steady ground), `pins.js` (paint on a mesh), `shade.js`, `finish.js` (the canvas) |
+| `src/oilpaint/` | The painter: `dabs.js` (the dab), `brush.js` (the marks), `common.js` (shared uniforms and GLSL), `ground.js` (the steady ground), `pins.js` (paint on a mesh), `shade.js`, `finish.js` (the canvas), `dither.js` (the colour dither) |
 | `src/night/` | The aurora: `land.js` (the ridge, the horns, the fjord), `paint.js` (the night's palette), `snow.js` (snow and rock), `pines.js`, `sky.js` (stars, moon, the aurora), `far.js` (water and ranges), `cabin.js` with `kit.js`, `roof.js`, `details.js`, `lantern.js`, `tracks.js` (his footprints), `drift.js` (snow in the air), `main.js` |
 | `src/world/` | The wood: `land.js` (ground and the way through), `floor.js` (leaf carpet, undergrowth), `forest.js` (about 3,100 trees: trunks, bark, about 570,000 leaf dabs), `sky.js`, `leaves.js` (falling), `kick.js` (kicked up) |
 | `src/figure/` | The wanderer: Patch's starter man and his movement (`man.js`, `animator.js`, `player.js`, `input.js`), his hat, and `cloak.js`, a cloth of points on threads kept off his body and under the hat's brim |

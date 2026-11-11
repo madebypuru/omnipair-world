@@ -1,0 +1,54 @@
+/* Goals (achievements.js): the toast that drops from the top, the list, and its button under the map's. */
+#omni-toasts, #omni-goals { font: 500 14px/1.45 var(--sans); color: var(--cream); }
+
+/* the toasts live in the top band's centre (hud.js), one at a time: the rest wait their turn */
+#omni-toasts { display: flex; justify-content: center; width: 100%; pointer-events: none; }
+.goal-toast { display: none; align-items: center; gap: 12px; width: min(420px, 100%); box-sizing: border-box; padding: 10px 12px 10px 10px;
+  background: var(--glass); border: 1px solid rgba(251, 249, 247, 0.1); border-radius: 16px;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  transform: translateY(-24px); opacity: 0; }
+.goal-toast:first-child { display: flex; animation: goal-toast 4.6s forwards; }
+@keyframes goal-toast {
+  0% { transform: translateY(-24px); opacity: 0; animation-timing-function: cubic-bezier(0.2, 1.3, 0.4, 1); }
+  10%, 90% { transform: none; opacity: 1; }
+  100% { transform: translateY(-8px); opacity: 0; }
+}
+.goal-toast .sym { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px; background: #1e1e1e; border: 1px solid rgba(251, 249, 247, 0.14); }
+.goal-toast .sym .omni-mark { width: 20px; height: 20px; }
+.goal-toast .what { flex: 1; min-width: 0; }
+.goal-toast .t { font-weight: 600; font-size: 14.5px; }
+.goal-toast .d { color: rgba(251, 249, 247, 0.64); font-size: 13px; }
+.goal-toast .n { color: rgba(251, 249, 247, 0.55); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.goal-toast .tick { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #0c0c0c; }
+.goal-toast .tick svg { width: 15px; height: 15px; }
+
+/* the list is a modal: under the top band, on the right */
+#omni-goals { position: fixed; top: var(--band); right: var(--gap); bottom: var(--gap); z-index: 7; width: min(380px, calc(100vw - 2 * var(--gap))); box-sizing: border-box;
+  display: flex; flex-direction: column; padding: 16px 8px 12px 16px;
+  background: rgba(20, 17, 15, 0.92); border: 1px solid rgba(251, 249, 247, 0.1); border-radius: 16px;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
+  opacity: 0; visibility: hidden; transform: translateX(12px); transition: opacity 0.22s, transform 0.22s, visibility 0s 0.22s; }
+#omni-goals.on { opacity: 1; visibility: visible; transform: none; transition: opacity 0.22s, transform 0.22s; }
+#omni-goals .goals-head { display: flex; align-items: center; padding: 0 8px 12px 0; border-bottom: 1px solid rgba(251, 249, 247, 0.08); }
+#omni-goals .goals-title { display: flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 600; }
+#omni-goals .goals-title .omni-mark { width: 18px; height: 18px; }
+#omni-goals .goals-count { margin-left: auto; color: rgba(251, 249, 247, 0.55); font-size: 13px; font-variant-numeric: tabular-nums; }
+#omni-goals .goals-list { list-style: none; margin: 0; padding: 4px 8px 4px 0; overflow-y: auto; flex: 1; scrollbar-width: thin; scrollbar-color: rgba(251, 249, 247, 0.2) transparent; }
+#omni-goals li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(251, 249, 247, 0.05); }
+#omni-goals li .mark { display: grid; place-items: center; flex: none; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%; box-sizing: border-box;
+  border: 1px solid rgba(251, 249, 247, 0.22); color: transparent; }
+#omni-goals li .mark svg { width: 14px; height: 14px; }
+#omni-goals li.done .mark { background: var(--accent); border-color: var(--accent); color: #0c0c0c; }
+#omni-goals li .what { flex: 1; min-width: 0; }
+#omni-goals li .t { font-weight: 600; }
+#omni-goals li .d { color: rgba(251, 249, 247, 0.6); font-size: 13px; }
+#omni-goals li .bar { height: 3px; margin-top: 7px; border-radius: 3px; background: rgba(251, 249, 247, 0.1); overflow: hidden; }
+#omni-goals li .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+#omni-goals li .n { flex: none; color: rgba(251, 249, 247, 0.5); font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+#omni-goals li.done .n { color: rgba(251, 249, 247, 0.8); }
+#omni-goals .goals-foot { display: flex; align-items: center; padding: 12px 8px 0 0; border-top: 1px solid rgba(251, 249, 247, 0.08); color: rgba(251, 249, 247, 0.5); font-size: 13px; }
+#omni-goals .goals-foot b { color: rgba(251, 249, 247, 0.85); }
+#omni-goals .goals-reset { margin-left: auto; min-height: var(--tap); padding: 6px 14px; border-radius: 10px; cursor: pointer; outline: none; font: inherit; font-size: 13px; font-weight: 600;
+  color: rgba(251, 249, 247, 0.75); background: transparent; border: 1px solid rgba(251, 249, 247, 0.16); transition: background 0.2s, color 0.2s, border-color 0.2s; }
+#omni-goals .goals-reset:hover { border-color: rgba(251, 249, 247, 0.4); color: var(--cream); }
+#omni-goals .goals-reset.armed { background: var(--trade); border-color: var(--trade); color: #0c0c0c; }

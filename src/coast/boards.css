@@ -1,0 +1,64 @@
+/* The board viewer (boards.js): near-black glass, cream type, the product's colour as --accent.
+   It fills the modal region under the top band: the slide, its words under it, then the signposts and key card. */
+#omni-board, #omni-board-fade { position: fixed; inset: 0; pointer-events: none; user-select: none; }
+#omni-board {
+  --accent: #fbf9f7; --light: #fbf9f7;
+  color: #fbf9f7; font: 500 14px/1.45 var(--sans);
+  opacity: 0; transition: opacity 0.35s; z-index: 5;
+}
+#omni-board.on { opacity: 1; }
+#omni-board-fade { background: #100e0d; opacity: 0; z-index: 6; }
+
+#omni-board-head { display: flex; align-items: center; gap: 10px; min-height: var(--tap); box-sizing: border-box; min-width: 0;
+  padding: 6px 14px 6px 6px; border-radius: 14px; background: rgba(20, 17, 15, 0.82); border: 1px solid rgba(251, 249, 247, 0.1);
+  color: #fbf9f7; font: 500 14px/1.45 var(--sans); white-space: nowrap; pointer-events: none; user-select: none;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+#omni-board-head .omni-board-icon { display: block; width: 30px; height: 30px; }
+#omni-board-head .name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+#omni-board-head .count { color: rgba(251, 249, 247, 0.55); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* The slide's width is fixed by the region alone (not by its words), so it stays put from slide to slide and the
+   camera can frame the board round it. 250px is kept below the slide for the words and the signposts. */
+#omni-board .frame { position: absolute; top: var(--band); left: var(--gap); right: var(--gap); bottom: var(--gap); container-type: size;
+  display: flex; flex-direction: column; align-items: center; }
+#omni-board .stack { --sw: min(calc(100cqw - 20px), calc((100cqh - 250px) * 16 / 9), 1120px);
+  width: var(--sw); margin-top: max(10px, calc((100cqh - var(--sw) * 9 / 16 - 250px) / 2));
+  display: flex; flex-direction: column; gap: 18px; }
+
+#omni-board .stage { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #100e0d;
+  box-shadow: 0 0 0 2px rgba(251, 249, 247, 0.85), 0 0 0 9px #0c0c0c, 0 18px 50px rgba(0, 0, 0, 0.45); }
+#omni-board .art, #omni-board .art svg { display: block; width: 100%; height: 100%; }
+#omni-board .arrow { position: absolute; top: 50%; width: var(--tap); height: var(--tap); margin-top: calc(var(--tap) / -2); display: grid; place-items: center;
+  box-sizing: border-box; border-radius: 50%; background: rgba(12, 12, 12, 0.7); border: 1px solid rgba(251, 249, 247, 0.22); pointer-events: auto; cursor: pointer; transition: opacity 0.2s; }
+#omni-board .arrow svg { width: 20px; height: 20px; fill: none; stroke: #fbf9f7; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+#omni-board .arrow.prev { left: 8px; }
+#omni-board .arrow.next { right: 8px; }
+#omni-board .arrow.off { opacity: 0.2; pointer-events: none; }
+
+#omni-board .dots { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 8px; }
+#omni-board .dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(251, 249, 247, 0.28); transition: background 0.2s, width 0.2s; }
+#omni-board .dots i.here { width: 22px; border-radius: 4px; background: var(--accent); }
+
+#omni-board .words { box-sizing: border-box; width: 100%; max-width: 640px; align-self: center; padding: 12px 18px 14px;
+  border-radius: 14px; background: rgba(20, 17, 15, 0.82); border: 1px solid rgba(251, 249, 247, 0.1); text-align: center;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+#omni-board .title { font-size: clamp(16px, 4.4vw, 20px); font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+#omni-board .text { margin: 6px 0 0; color: rgba(251, 249, 247, 0.78); font-size: clamp(13px, 3.6vw, 14.5px); }
+
+/* the neighbours, named on signposts either side, with the key card between them */
+#omni-board .nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#omni-board .sign { display: flex; align-items: center; gap: 8px; min-height: var(--tap); box-sizing: border-box; padding: 8px 14px 8px 8px; white-space: nowrap;
+  border-radius: 12px; background: rgba(20, 17, 15, 0.82); border: 1px solid rgba(251, 249, 247, 0.1); pointer-events: auto; cursor: pointer; font-weight: 600; }
+#omni-board .sign.down { padding: 8px 8px 8px 14px; }
+#omni-board .sign .k { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: #fbf9f7; color: #0c0c0c; font-weight: 700; }
+
+/* the key card: chalk on a dark slate, as on the chalkboard beside each of Bruno's boards */
+#omni-board .keys { display: grid; gap: 5px; padding: 10px 14px; border-radius: 10px;
+  background: #1b1a1e; border: 2px solid #3a332c; box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.5); color: rgba(251, 249, 247, 0.86);
+  font-size: 13px; letter-spacing: 0.02em; white-space: nowrap; }
+#omni-board .keys div { display: grid; grid-template-columns: 34px 34px auto; gap: 6px; align-items: baseline; }
+#omni-board .keys b { font-weight: 700; color: #fbf9f7; }
+#omni-board .keys span { color: rgba(251, 249, 247, 0.5); }
+#omni-board .keys i { font-style: normal; }
+/* no room for the key card between the signposts: the arrows on the slide and the signposts say it */
+@container (max-width: 560px) { #omni-board .keys { display: none; } }

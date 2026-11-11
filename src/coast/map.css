@@ -1,0 +1,65 @@
+/* The map (map.js) and the round buttons top right. Near-black glass, a hairline, cream; colour comes only from the
+   products' markers. */
+.omni-corner, #omni-map .map-card, .map-pin .pin-name {
+  font: 500 14px/1.45 var(--sans);
+  color: var(--cream);
+}
+.omni-corner {
+  display: flex; align-items: center; justify-content: center; gap: 7px; height: var(--tap); min-width: var(--tap); box-sizing: border-box; padding: 0 12px 0 10px; pointer-events: auto;
+  background: var(--glass); border: 1px solid rgba(251, 249, 247, 0.1); border-radius: 16px; cursor: pointer; outline: none;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35); transition: border-color 0.2s, background 0.2s;
+}
+.omni-corner svg { width: 18px; height: 18px; display: block; }
+.omni-corner span { font-size: 13px; font-weight: 600; color: rgba(251, 249, 247, 0.55); }
+.omni-corner:hover, .omni-corner.on { border-color: rgba(251, 249, 247, 0.32); background: rgba(20, 17, 15, 0.92); }
+/* a phone has no keys to name, and three named buttons would crowd the board's name off the top band */
+@media (max-width: 479px) { .omni-corner { padding: 0; } .omni-corner span { display: none; } }
+
+/* the map is a modal: it fills the region under the top band */
+#omni-map { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding: var(--band) var(--gap) var(--gap); box-sizing: border-box;
+  background: rgba(12, 12, 12, 0.55); opacity: 0; visibility: hidden; transition: opacity 0.25s, visibility 0s 0.25s; }
+#omni-map.on { opacity: 1; visibility: visible; transition: opacity 0.25s; }
+#omni-map .map-card { display: flex; flex-direction: column; gap: 12px; padding: 14px 14px 14px; max-height: 100%; box-sizing: border-box;
+  background: var(--glass); border: 1px solid rgba(251, 249, 247, 0.1); border-radius: 16px;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
+  transform: translateY(8px) scale(0.985); transition: transform 0.25s; }
+#omni-map.on .map-card { transform: none; }
+#omni-map .map-head { display: flex; align-items: center; gap: 12px; height: var(--tap); padding: 0 0 0 4px; white-space: nowrap; }
+#omni-map .map-title { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 600; letter-spacing: -0.005em; }
+#omni-map .map-title .omni-mark { width: 18px; height: 18px; }
+#omni-map .map-keys { margin-left: auto; color: rgba(251, 249, 247, 0.5); font-size: 13px; }
+@media (max-width: 559px) { #omni-map .map-keys { display: none; } #omni-map .map-close { margin-left: auto; } }
+#omni-map .map-keys b { color: rgba(251, 249, 247, 0.85); font-weight: 600; }
+#omni-map .map-close { display: grid; place-items: center; flex: none; width: var(--tap); height: var(--tap); padding: 0; border-radius: 10px; cursor: pointer; outline: none;
+  background: transparent; color: var(--cream); border: 1px solid rgba(251, 249, 247, 0.12); }
+#omni-map .map-close:hover { border-color: rgba(251, 249, 247, 0.4); }
+#omni-map .map-close svg { width: 16px; height: 16px; }
+/* the picture keeps the area's own shape (360 by 600 metres) and fills what height the region has: less the band,
+   the margin, the card's padding (28) and borders (4), its head and the gap under it */
+#omni-map .map-frame { position: relative; aspect-ratio: 360 / 600;
+  height: min(calc(100vh - var(--band) - var(--gap) - 32px - var(--tap) - 12px), calc((100vw - 2 * var(--gap) - 32px) * 600 / 360));
+  border-radius: 10px; overflow: hidden; border: 1px solid rgba(251, 249, 247, 0.08); background: #14110f; }
+#omni-map .map-picture { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+#omni-map .map-pins { position: absolute; inset: 0; }
+
+.map-pin { position: absolute; transform: translate(-50%, -50%); padding: 0; border: 0; background: none; cursor: pointer; outline: none; }
+.map-pin .pin-face { display: grid; place-items: center; width: 30px; height: 30px; box-sizing: border-box; transform: rotate(45deg); border-radius: 8px;
+  background: rgba(12, 12, 12, 0.86); border: 1.5px solid var(--accent); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); transition: transform 0.15s; }
+.map-pin .pin-face > * { transform: rotate(-45deg); width: 18px; height: 18px; display: block; color: var(--cream); }
+.map-pin .pin-face .pin-icon { width: 20px; height: 20px; }
+.map-pin:hover .pin-face, .map-pin.on .pin-face { transform: rotate(45deg) scale(1.18); }
+.map-pin .pin-name { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translate(-50%, 4px); white-space: nowrap; pointer-events: none;
+  padding: 4px 10px; border-radius: 8px; background: #0c0c0c; border: 1px solid rgba(251, 249, 247, 0.12); font-size: 13px; font-weight: 600;
+  opacity: 0; transition: opacity 0.15s, transform 0.15s; }
+.map-pin:hover .pin-name, .map-pin.on .pin-name { opacity: 1; transform: translate(-50%, 0); }
+.map-pin:hover, .map-pin.on { z-index: 2; }
+
+.map-me { position: absolute; width: 0; height: 0; z-index: 3; pointer-events: none; }
+.map-me::before { content: ""; position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(251, 249, 247, 0.22); animation: map-me 1.8s ease-out infinite; }
+.map-me .me-arrow { position: absolute; left: -10px; top: -12px; width: 20px; height: 24px; display: block; color: var(--cream);
+  transform: rotate(var(--turn, 0rad)); transform-origin: 10px 12px; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
+@keyframes map-me { from { transform: scale(0.6); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+
+#omni-fade { position: fixed; inset: 0; z-index: 20; background: #0c0c0c; opacity: 0; pointer-events: none; transition: opacity 0.6s ease-in; }
+#omni-fade.on { opacity: 0.94; transition: opacity 0.3s ease-out; }
