@@ -1,0 +1,132 @@
+/* The play HUD (playhud.js): near-black glass, cream text, colour only from the three products. It takes the count's
+   place top left, the lockup's and the hint's along the bottom, and yields to every modal as hud.js's rules say. */
+body.playing #omni-count, body.playing #omni-lockup, body.playing #hint { display: none; }
+body.playing #omni-top > .tc { flex-direction: column; align-items: center; gap: 8px; }
+/* the round map sits where the lockup did, and is wider: the keys keep clear of it */
+@media (min-width: 700px) { body.playing #omni-bottom { grid-template-columns: 154px minmax(0, 1fr) 154px; } }
+
+.play-glass { box-sizing: border-box; color: var(--cream); font: 500 14px/1.4 var(--sans); pointer-events: none; user-select: none;
+  background: var(--glass); border: 1px solid rgba(251, 249, 247, 0.1); border-radius: 16px;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35); }
+
+/* top left: the score and what he carries */
+#play-score { display: flex; flex-direction: column; gap: 6px; min-height: var(--tap); padding: 8px 12px 9px; max-width: min(300px, 100%); }
+#play-score .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+#play-score .omni-mark { width: 18px; height: 18px; }
+#play-score .score { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+#play-score .best { margin-left: auto; color: rgba(251, 249, 247, 0.5); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.play-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 5px; border-radius: 12px; font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums; background: rgba(251, 249, 247, 0.07); white-space: nowrap; }
+.play-chip .disc { width: 13px; height: 13px; border-radius: 50%; box-sizing: border-box; flex: none; }
+.play-chip.a .disc { background: var(--cream); }
+.play-chip.b .disc { background: var(--ink); border: 2px solid var(--cream); }
+.play-chip.pairs { padding: 0 9px; background: var(--cream); color: var(--ink); }
+.play-chip.pairs.none { background: rgba(251, 249, 247, 0.07); color: rgba(251, 249, 247, 0.5); }
+.play-chip.bump { animation: play-bump 0.3s; }
+@keyframes play-bump { 40% { transform: scale(1.18); } }
+#play-score .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+#play-score .tags:empty { display: none; }
+.play-tag { height: 22px; padding: 0 8px; border-radius: 11px; font-size: 13px; font-weight: 600; line-height: 22px; white-space: nowrap; color: var(--ink); background: var(--accent); }
+
+/* top centre: where to go next, and the first minute's lessons under it */
+#play-objective { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: var(--tap); padding: 7px 16px 8px 12px; max-width: min(440px, 100%); }
+#play-objective .row { display: flex; align-items: center; gap: 9px; white-space: nowrap; }
+.play-arrow { width: 22px; height: 22px; flex: none; color: var(--accent, var(--cream)); transform: rotate(var(--turn, 0rad)); }
+#play-objective .name { font-weight: 600; }
+#play-objective .far { color: rgba(251, 249, 247, 0.6); font-variant-numeric: tabular-nums; }
+#play-objective .teach { color: rgba(251, 249, 247, 0.78); font-size: 13px; text-align: center; }
+#play-objective .teach:empty { display: none; }
+
+/* left: the highlights, Tab picks one to steer by */
+#play-highlights { position: fixed; z-index: 4; left: var(--gap); top: 50%; transform: translateY(-50%); width: 210px; padding: 8px 6px 8px 8px; }
+#play-highlights .head { display: flex; justify-content: space-between; padding: 0 6px 6px; color: rgba(251, 249, 247, 0.5); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+#play-highlights .head b { color: rgba(251, 249, 247, 0.8); letter-spacing: 0; }
+#play-highlights ol { list-style: none; margin: 0; padding: 0; }
+#play-highlights li { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 6px; border-radius: 9px; font-size: 13px; }
+#play-highlights li .play-arrow { width: 15px; height: 15px; }
+#play-highlights li .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#play-highlights li .far { color: rgba(251, 249, 247, 0.55); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#play-highlights li.on { background: rgba(251, 249, 247, 0.1); box-shadow: inset 2px 0 0 var(--accent); }
+
+/* bottom left: the round map, north up */
+#play-minimap { position: fixed; z-index: 4; left: var(--gap); bottom: var(--gap); width: 150px; height: 150px; padding: 0; border-radius: 50%; overflow: hidden; }
+#play-minimap canvas { display: block; width: 100%; height: 100%; }
+#play-minimap .n { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 700; color: rgba(251, 249, 247, 0.8); }
+
+/* bottom centre: the keys for what he is doing now */
+#play-keys { grid-area: hint; justify-self: center; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; max-width: 100%; padding: 8px 16px; font-size: 13px; color: rgba(251, 249, 247, 0.82); }
+#play-keys span { white-space: nowrap; }
+#play-keys b { display: inline-block; min-width: 18px; margin-right: 5px; padding: 0 5px; border-radius: 5px; background: rgba(251, 249, 247, 0.12); color: var(--cream); text-align: center; font-weight: 650; }
+#play-keys .go b { background: var(--cream); color: var(--ink); }
+
+/* the combo, while in the air and a little after */
+#play-combo { position: fixed; z-index: 4; left: 50%; bottom: calc(var(--gap) + 200px); display: flex; align-items: center; gap: 10px; padding: 7px 14px;
+  transform: translate(-50%, 8px); opacity: 0; transition: opacity 0.2s, transform 0.2s; }
+#play-combo.on { opacity: 1; transform: translate(-50%, 0); }
+#play-combo .x { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; background: linear-gradient(90deg, var(--leverage), var(--lending), var(--trade)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#play-combo .what { color: rgba(251, 249, 247, 0.75); font-size: 13px; white-space: nowrap; }
+#play-combo .bar { width: 64px; height: 3px; border-radius: 3px; background: rgba(251, 249, 247, 0.12); overflow: hidden; }
+#play-combo .bar i { display: block; height: 100%; width: calc(var(--hold, 1) * 100%); background: var(--cream); }
+
+/* the middle: a deposit's count-up, and what a product ring just did */
+#play-center { position: fixed; z-index: 5; left: 50%; top: 30%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px;
+  width: min(520px, calc(100vw - 2 * var(--gap))); pointer-events: none; color: var(--cream); font: 500 14px/1.35 var(--sans); text-align: center; }
+#play-count { display: none; flex-direction: column; align-items: center; gap: 2px; padding: 12px 26px 14px; }
+#play-count.on { display: flex; animation: play-count 1.9s forwards; }
+@keyframes play-count { 0% { opacity: 0; transform: scale(0.8); } 12% { opacity: 1; transform: scale(1.04); } 20%, 82% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-10px); } }
+#play-count .plus { font-size: 52px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums;
+  background: linear-gradient(90deg, var(--leverage), var(--lending) 50%, var(--trade)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#play-count .how { color: rgba(251, 249, 247, 0.8); font-size: 14px; }
+#play-flash { display: none; padding: 9px 16px; border-color: var(--accent); }
+#play-flash.on { display: block; animation: play-flash 2.8s forwards; }
+#play-flash .t { color: var(--accent); font-weight: 650; }
+@keyframes play-flash { 0% { opacity: 0; transform: translateY(6px); } 8%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+/* the score card, at the Pool */
+#play-card { position: fixed; inset: 0; z-index: 7; display: grid; place-items: center; padding: var(--band) var(--gap) var(--gap); box-sizing: border-box;
+  background: rgba(12, 12, 12, 0.45); opacity: 0; visibility: hidden; transition: opacity 0.22s, visibility 0s 0.22s; font: 500 14px/1.45 var(--sans); color: var(--cream); }
+#play-card.on { opacity: 1; visibility: visible; transition: opacity 0.22s; }
+#play-card .card { width: min(420px, 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 20px 22px 18px; border-radius: 18px;
+  background: rgba(20, 17, 15, 0.94); border: 1px solid rgba(251, 249, 247, 0.12); box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5); }
+#play-card .eyebrow { display: flex; align-items: center; gap: 8px; color: rgba(251, 249, 247, 0.55); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+#play-card .eyebrow .omni-mark { width: 16px; height: 16px; }
+#play-card .total { margin: 6px 0 2px; font-size: 46px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+#play-card .newbest { display: none; height: 24px; padding: 0 10px; border-radius: 12px; line-height: 24px; font-size: 13px; font-weight: 700; color: var(--ink);
+  background: linear-gradient(90deg, var(--leverage), var(--lending), var(--trade)); }
+#play-card.best .newbest { display: inline-block; }
+#play-card dl { display: grid; grid-template-columns: 1fr auto; gap: 0; margin: 14px 0 16px; }
+#play-card dt, #play-card dd { margin: 0; padding: 8px 0; border-top: 1px solid rgba(251, 249, 247, 0.07); }
+#play-card dt { color: rgba(251, 249, 247, 0.7); }
+#play-card dd { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+#play-card .used { display: inline-flex; gap: 5px; vertical-align: middle; }
+#play-card .used i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(251, 249, 247, 0.3); box-sizing: border-box; }
+#play-card .used i.on { background: var(--c); border-color: var(--c); }
+#play-card .buttons { display: flex; gap: 10px; }
+#play-card button { flex: 1; min-height: var(--tap); border-radius: 12px; font: inherit; font-weight: 650; cursor: pointer; outline: none; }
+#play-card .ride { border: 0; background: var(--cream); color: var(--ink); }
+#play-card .over { background: transparent; color: var(--cream); border: 1px solid rgba(251, 249, 247, 0.22); }
+#play-card .keys { margin-top: 10px; color: rgba(251, 249, 247, 0.45); font-size: 13px; text-align: center; }
+
+/* what yields: a modal holds the screen, and the card holds the game's glass */
+body[data-ui="board"] .play-yield, body[data-ui="map"] .play-yield, body[data-ui="goals"] .play-yield, body[data-ui="options"] .play-yield,
+body[data-play="card"] .play-yield, body[data-play="card"] #omni-toasts, body[data-play="card"] #play-center { display: none !important; }
+body[data-ui="options"] #play-score, body[data-play="card"] #play-score { display: none; }
+/* under a modal only the score itself stays, one row, inside the top band */
+body[data-ui="map"] #play-score .row + .row, body[data-ui="goals"] #play-score .row + .row, body[data-ui="map"] #play-score .tags, body[data-ui="goals"] #play-score .tags { display: none; }
+body[data-ui="board"] #play-center, body[data-ui="map"] #play-center, body[data-ui="goals"] #play-center, body[data-ui="options"] #play-center { display: none; }
+body[data-ui="board"] #play-score { display: none; }
+body[data-ui="panel"] #play-keys { visibility: hidden; }
+
+@media (max-width: 899px) { #play-highlights { display: none; } }
+/* a phone: no keyboard to hint at; the map goes to the right, clear of the prompt */
+@media (max-width: 699px) {
+  #play-keys { display: none; }
+  #play-minimap { width: 92px; height: 92px; left: auto; right: var(--gap); }
+  #play-score .best { display: none; }
+  #play-center { top: 52%; }
+  .play-tag { height: auto; white-space: normal; line-height: 18px; padding: 2px 8px; }
+  body[data-ui="panel"] #play-minimap { display: none; }
+  #play-count .plus { font-size: 40px; }
+  #play-combo { bottom: calc(var(--gap) + 110px); }
+}
+@media (max-height: 560px) { #play-highlights { display: none; } }

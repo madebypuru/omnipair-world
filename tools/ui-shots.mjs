@@ -1,7 +1,7 @@
 // The on-screen glass at five window sizes, headless, from a build in dist/. Writes shots/ui/<size>-<state>.png and
 // fails (exit 1) when two visible pieces of UI overlap without one holding the other, when a piece or its text leaves
 // the window or its own box, when a caption is set under 13px, when a click takes the keyboard's focus, or on a page error.
-//   npm run build && CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node tools/ui-shots.mjs [360x640 ...]
+//   npm run build && CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node tools/ui-shots.mjs [360x640 ...] [--dist dist-x]
 import { mkdirSync, createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
@@ -16,7 +16,8 @@ const sizes = process.argv.slice(2).filter((a) => /^\d+x\d+$/.test(a));
 const out = resolve(here, 'shots', 'ui');
 mkdirSync(out, { recursive: true });
 
-const root = resolve(here, 'dist');
+const di = process.argv.indexOf('--dist');
+const root = resolve(here, di > 0 ? process.argv[di + 1] : 'dist');
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.glb': 'model/gltf-binary', '.wasm': 'application/wasm' };
 const server = createServer((req, res) => {
   let file = normalize(join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname)));
@@ -34,7 +35,8 @@ const check = (ok, what) => { if (!ok) { failures++; console.log(`FAIL ${what}`)
 
 // Every piece of glass that owns a region of the screen. Each is checked against every other one.
 const PIECES = ['#omni-count', '#omni-board-head', '.omni-corner', '.goal-toast', '#omni-prompt', '#omni-lockup', '#hint', '#omni-panel',
-  '#omni-board .stage', '#omni-board .words', '#omni-board .sign', '#omni-board .keys', '#omni-map .map-card', '#omni-goals', '#omni-options .opt-card'];
+  '#omni-board .stage', '#omni-board .words', '#omni-board .sign', '#omni-board .keys', '#omni-map .map-card', '#omni-goals', '#omni-options .opt-card',
+  '#play-score', '#play-objective', '#play-highlights', '#play-minimap', '#play-keys', '#play-combo', '#play-count', '#play-flash', '#play-card .card'];
 
 /** What is on screen now, and what is wrong with it. Runs in the page. */
 function inspect(pieces) {
@@ -97,7 +99,7 @@ for (const size of sizes.length ? sizes : SIZES) {
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 300)); });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  await page.goto(`${base}?nopad`);
+  await page.goto(`${base}?nopad&title=0`);
   await page.waitForFunction(() => window.lab?.ready, null, { timeout: 120000 });
   const sleep = (ms) => page.waitForTimeout(ms);
   const ui = () => page.evaluate(() => document.body.dataset.ui);
@@ -141,13 +143,30 @@ for (const size of sizes.length ? sizes : SIZES) {
   check(!goals.shown.includes('div.goal-toast'), `${size} goals: a toast shows over the list`);
   await page.evaluate(() => { window.lab.achievements.close(); window.lab.first(false); });
 
-  // all three read, so the count says where to go next and the great mark lights; then its panel
-  await page.evaluate(() => { const L = window.lab; L.omni.stones.forEach((s, i) => { L.omni.browse(i); L.omni.slide(s.slides.length - 1); }); L.omni.press(); });
+  // all three read, and a pair banked so the great mark lights; then its panel
+  await page.evaluate(() => { const L = window.lab; L.omni.stones.forEach((s, i) => { L.omni.browse(i); L.omni.slide(s.slides.length - 1); }); L.omni.press(); L.game?.give(1, 1); L.game?.deposit(); });
   await page.waitForFunction(() => window.lab.omni.state().lit > 0.9, null, { timeout: 30000 }).catch(() => {});
   await page.evaluate(() => window.lab.omni.visit(3));
   await sleep(900);
   const panel = await shoot(page, size, 'panel');
   check(panel.shown.includes('#omni-panel'), `${size} panel: the great mark's panel is not showing`);
+
+  // the play HUD in the air with a combo, a product ring's result, a deposit's count-up, then the score card
+  await page.evaluate(() => { const L = window.lab; L.omni.press(); L.game.give(4, 4); L.game.land({ airtime: 1.5, flips: 1, clean: true }); L.game.use('leverage'); });
+  await sleep(500);
+  const air = await shoot(page, size, 'play-combo');
+  check(air.shown.includes('#play-flash'), `${size} play: the ring's result is not showing`);
+  await page.evaluate(() => window.lab.game.deposit());
+  await sleep(400);
+  const dep = await shoot(page, size, 'play-deposit');
+  check(dep.shown.includes('#play-count'), `${size} play: the count-up is not showing`);
+  await page.evaluate(() => window.lab.game.finish());
+  await sleep(600);
+  const card = await shoot(page, size, 'play-card');
+  check(card.shown.includes('div.card') && !card.shown.includes('#play-keys'), `${size} play: the card is not showing alone`);
+  check(await page.evaluate(() => document.activeElement === document.body), `${size}: the card took the focus`);
+  await page.evaluate(() => window.lab.game.close());
+  await sleep(300);
 
   // the options: the gear opens them without taking the focus, Esc (no pointer lock here) shuts them and gives the
   // keys back to the walk, O opens them again

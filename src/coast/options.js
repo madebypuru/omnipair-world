@@ -7,7 +7,6 @@ import { symbolMarkup, lockupMarkup } from './brand.js';
 import { slot } from './hud.js';
 import { version } from '../../patch.json';
 
-const KEY = 'omnipair-world.options.v1';
 const num = (s) => (s === '' || !Number.isFinite(Number(s)) ? undefined : Number(s));
 const bool = (s) => !['0', 'false', 'off', 'no'].includes(s);
 
@@ -22,15 +21,24 @@ export const SETTINGS = [
   { key: 'invertY', group: 'Camera', label: 'Invert Y', kind: 'toggle', value: false, url: 'invert', parse: bool },
   { key: 'fov', group: 'Camera', label: 'Field of view', kind: 'range', min: 40, max: 70, step: 1, value: 46, show: (v) => `${v}°`, url: 'fov', parse: num },
 ];
-const DEF = Object.fromEntries(SETTINGS.map((s) => [s.key, s]));
+// The sound's settings (audio.js applies them), kept apart from the picture's under their own key
+export const SOUND = [
+  { key: 'music', group: 'Sound', label: 'Music volume', kind: 'range', min: 0, max: 1, step: 0.05, value: 0.7, show: (v) => `${Math.round(v * 100)}%`, url: 'music', parse: num },
+  { key: 'effects', group: 'Sound', label: 'Effects volume', kind: 'range', min: 0, max: 1, step: 0.05, value: 0.8, show: (v) => `${Math.round(v * 100)}%`, url: 'effects', parse: num },
+  { key: 'mute', group: 'Sound', label: 'Mute all (L)', kind: 'toggle', value: false, url: 'mute', parse: bool },
+];
+export const SOUND_KEY = 'omnipair-world.sound.v1';
 
-const CONTROLS = [
-  ['Move', 'W A S D, arrows', 'Left stick'],
-  ['Sprint', 'Shift', 'L3 or RB'],
-  ['Walk slowly', 'Alt, Caps Lock', 'Tilt the stick less'],
-  ['Jump', 'Space', 'A'],
+export const CONTROLS = [
+  ['Push, brake', 'W, S', 'RT, LT'],
+  ['Carve', 'A D', 'Left stick'],
+  ['Boost', 'Shift', 'X'],
+  ['Leap, glide', 'Space, hold it', 'A, hold it'],
+  ['Flip, spin (in the air)', 'W S, A D', 'Left stick'],
+  ['Step off, call the board', 'F', 'Y'],
+  ['Walk (off the board)', 'W A S D, Shift sprints', 'Left stick'],
   ['Look', 'Click, then mouse', 'Right stick'],
-  ['Strafe', 'F, right mouse', 'LT'],
+  ['Strafe (walking)', 'Right mouse', 'LT'],
   ['Zoom', 'Wheel', 'D-pad up and down'],
   ['Read a stone', 'E', ''],
   ['Map', 'M', ''],
@@ -38,20 +46,22 @@ const CONTROLS = [
   ['Options', 'O, Esc', ''],
   ['Through his eyes', 'V', ''],
   ['Hide the hint', 'H', ''],
+  ['Mute sound', 'L', ''],
 ];
 
 /**
  * The settings' values: stored ones over the defaults, and this visit's URL over those. auto(key) gives a default
  * that depends on where the game runs (Patch's quality). remember: read and write localStorage.
  */
-export function loadSettings({ remember = true, search = location.search, auto = () => undefined } = {}) {
+export function loadSettings({ remember = true, search = location.search, auto = () => undefined, table = SETTINGS, key: KEY = 'omnipair-world.options.v1' } = {}) {
+  const DEF = Object.fromEntries(table.map((s) => [s.key, s]));
   let stored = {};
   if (remember) {
     try { stored = JSON.parse(localStorage.getItem(KEY)) ?? {}; } catch { stored = {}; }
   }
   const q = new URLSearchParams(search);
   const values = {};
-  for (const s of SETTINGS) {
+  for (const s of table) {
     const fromUrl = q.has(s.url) ? s.parse(q.get(s.url)) : undefined;
     values[s.key] = fromUrl ?? (s.key in stored ? stored[s.key] : undefined) ?? auto(s.key) ?? s.value;
   }
@@ -117,7 +127,7 @@ export function createOptionsUi({ settings, apply, actions, onOpen, twoStep }) {
 
   // each setting's control, and how to show a value on it
   const views = {};
-  for (const s of SETTINGS) {
+  const controls = (table, settings, apply) => { for (const s of table) {
     const set = (v) => { settings.set(s.key, v); apply(s.key, v); views[s.key](v); };
     if (s.kind === 'choice') {
       const seg = el('div', 'opt-seg');
@@ -163,7 +173,8 @@ export function createOptionsUi({ settings, apply, actions, onOpen, twoStep }) {
       row(s.group, s.label, wrap);
     }
     views[s.key](settings.values[s.key]);
-  }
+  } };
+  controls(SETTINGS, settings, apply);
 
   const action = (g, label, text, fn) => {
     const b = el('button', 'opt-action', text);
@@ -203,7 +214,11 @@ export function createOptionsUi({ settings, apply, actions, onOpen, twoStep }) {
     open: () => setOpen(true),
     close: () => setOpen(false),
     toggle: () => setOpen(!isOpen),
-    /** A value changed from outside the menu (lab, Patch): show it. */
-    show: (key) => views[key]?.(settings.values[key]),
+    /** A value changed from outside the menu (lab, Patch): show it. store: whose values, when not the picture's. */
+    show: (key, store = settings) => views[key]?.(store.values[key]),
+    /** More settings from another table (SOUND), with their own store and their own apply(key, value). */
+    addSettings(table, store, apply) { controls(table, store, apply); body.appendChild(sheet); },
+    /** A button row: group, what it does, the button's text, and what a click runs. */
+    addAction(g, label, text, fn) { const b = action(g, label, text, fn); body.appendChild(sheet); return b; },
   };
 }

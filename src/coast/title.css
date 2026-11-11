@@ -1,0 +1,89 @@
+/* The title (title.js): the live painting hung on a near-black wall in Omnipair's colours. The wall glows low in the
+   brand's blue, turquoise and orange, dithered (painted on .wall by title.js). A cream mat, a thin near-black frame,
+   and a museum plate under it. --k is the painting's share of the window, the same both ways, so the picture keeps
+   the window's shape and stepping in is only a scale. */
+:root { --k: 0.62; --mat: clamp(9px, 2.6vmin, 30px); --rim: clamp(4px, 0.7vmin, 8px);
+  --pw: calc(100vw * var(--k)); --ph: calc(100vh * var(--k)); --px: calc((100vw - var(--pw)) / 2); --py: calc(var(--mat) + var(--rim) + 4.5vh);
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+@media (max-aspect-ratio: 3/4) { :root { --k: 0.66; } }
+@media (max-height: 760px) and (max-aspect-ratio: 3/4) { :root { --k: 0.56; } }
+
+#title { position: fixed; inset: 0; z-index: 0; overflow: hidden; background: #0d0b0a; font: 500 14px/1.45 var(--sans); color: var(--cream); }
+html:not(.title):not(.notitle) #title { display: none; }
+#title .room { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform, opacity; }
+#title .wall { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+#title .frame { position: absolute; box-sizing: border-box;
+  left: calc(var(--px) - var(--mat) - var(--rim)); top: calc(var(--py) - var(--mat) - var(--rim));
+  width: calc(var(--pw) + 2 * (var(--mat) + var(--rim))); height: calc(var(--ph) + 2 * (var(--mat) + var(--rim)));
+  background: #f4f0ea; border: var(--rim) solid #0c0c0c; border-radius: 2px;
+  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.04), 0 18px 40px rgba(0, 0, 0, 0.55), 0 50px 120px rgba(0, 0, 0, 0.5); }
+/* the mat's cut edge, a hairline of shade where it meets the canvas */
+#title .frame::after { content: ""; position: absolute; left: calc(var(--mat) - 1px); top: calc(var(--mat) - 1px); right: calc(var(--mat) - 1px); bottom: calc(var(--mat) - 1px);
+  box-shadow: 0 0 0 1px rgba(12, 12, 12, 0.18), 0 1px 3px rgba(12, 12, 12, 0.25); }
+
+#title .under { position: absolute; left: 50%; top: calc(var(--py) + var(--ph) + var(--mat) + var(--rim) + clamp(14px, 3.2vh, 34px)); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: clamp(12px, 2.4vh, 22px); width: min(440px, calc(100vw - 2 * var(--gap))); }
+/* the museum plate: a small cream card, the mark in ink */
+#title .plate { box-sizing: border-box; width: min(340px, 100%); padding: 13px 16px 12px; background: #f4f0ea; color: #0c0c0c; border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset, 0 6px 18px rgba(0, 0, 0, 0.45); display: grid; gap: 6px; }
+#title .plate .lockup { display: block; width: 104px; height: auto; color: #0c0c0c; }
+#title .plate .tag { margin: 0; font: 500 12px/1.3 var(--mono); letter-spacing: -0.01em; color: #0c0c0c; }
+#title .plate .premise { margin: 0; padding-top: 7px; border-top: 1px solid rgba(12, 12, 12, 0.14); font-size: 13px; line-height: 1.4; color: rgba(12, 12, 12, 0.72); }
+
+#title .actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 16px; }
+#title button { font: inherit; cursor: pointer; }
+#title .step { min-height: var(--tap); padding: 0 24px; border: 0; border-radius: 12px; background: var(--cream); color: var(--ink); font-weight: 600; font-size: 15px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45); transition: background 0.2s, transform 0.2s; }
+#title .step:hover { background: #fff; transform: translateY(-1px); }
+#title .step .key { margin-left: 10px; padding: 2px 6px; border-radius: 5px; background: rgba(12, 12, 12, 0.08); font-size: 11px; font-weight: 600; color: rgba(12, 12, 12, 0.55); }
+#title .how { min-height: var(--tap); padding: 0 6px; border: 0; background: none; color: rgba(251, 249, 247, 0.6); font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(251, 249, 247, 0.25); }
+#title .how:hover { color: var(--cream); }
+#title :focus-visible { outline: 2px solid var(--lending); outline-offset: 3px; }
+#title .under:has(#loading) .actions { display: none; }
+
+/* loading, in the plate's place for the buttons */
+#loading { display: grid; justify-items: center; gap: 10px; min-height: var(--tap); align-content: center; }
+#loading .bar { width: 160px; height: 2px; border-radius: 2px; background: rgba(251, 249, 247, 0.1); overflow: hidden; }
+#loading .bar i { display: block; height: 100%; width: calc(var(--done, 0) * 100%); background: linear-gradient(90deg, var(--leverage), var(--lending), var(--trade)); transition: width 0.2s; }
+#loading .label { color: rgba(251, 249, 247, 0.6); font-size: 13px; }
+
+/* how to play: a glass sheet over the wall */
+#title .howto { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; padding: var(--gap); background: rgba(12, 12, 12, 0.6); }
+#title .howto[hidden] { display: none; }
+#title .howto .card { box-sizing: border-box; width: min(560px, 100%); max-height: calc(100vh - 2 * var(--gap)); overflow-y: auto; padding: 18px 20px 16px;
+  background: rgba(20, 17, 15, 0.94); border: 1px solid rgba(251, 249, 247, 0.1); border-radius: 16px; box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5); }
+#title .howto h2 { margin: 0 0 10px; font-size: 17px; font-weight: 600; }
+#title .howto ol { margin: 0 0 12px; padding-left: 20px; color: rgba(251, 249, 247, 0.82); }
+#title .howto li { margin: 3px 0; }
+#title .howto table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#title .howto td { padding: 5px 8px 5px 0; border-top: 1px solid rgba(251, 249, 247, 0.06); color: rgba(251, 249, 247, 0.78); vertical-align: top; }
+#title .howto td:first-child { color: var(--cream); white-space: nowrap; }
+#title .howto .close { display: block; margin: 14px 0 0 auto; min-height: 40px; padding: 0 18px; border-radius: 10px; border: 0; background: var(--cream); color: var(--ink); font-weight: 600; }
+
+/* the painting itself: #view in the frame's opening; the canvas fills it */
+html.title #view { inset: auto; left: var(--px); top: var(--py); width: var(--pw); height: var(--ph); z-index: 1; transform-origin: 0 0; will-change: transform; }
+html.title:not(.ready) #view { opacity: 0; }
+html.title #view { transition: opacity 1.4s ease; }
+/* nothing of the game's glass shows on the title (whatever other modules put on the page); it fades in after stepping
+   in, from nothing to whatever opacity it has of its own */
+html.title body > :not(#view):not(#title):not(#omni-options):not(script) { opacity: 0 !important; visibility: hidden !important; }
+html.stepped body > :not(#view):not(#title):not(script) { animation: title-hud-in 0.9s ease 0.1s backwards; }
+@keyframes title-hud-in { from { opacity: 0; } }
+
+/* starting straight in the world (?capture, ?clean, ?patch-test=1, ?title=0): the wall and plate only while loading */
+html.notitle #title { z-index: 20; }
+html.notitle #title .frame, html.notitle #title .actions { display: none; }
+html.notitle #title .under { top: 50%; transform: translate(-50%, -50%); }
+
+@media (max-height: 760px) and (max-aspect-ratio: 3/4) {
+  #title .under { gap: 10px; }
+  #title .plate { padding: 10px 12px 9px; gap: 4px; }
+  #title .plate .lockup { width: 88px; }
+  #title .plate .premise { padding-top: 5px; font-size: 12px; }
+}
+@media (max-height: 520px) { #title .plate .premise { display: none; } }
+/* a phone has no Enter key to name */
+@media (max-width: 479px) { #title .step .key { display: none; } #title .step { padding: 0 18px; } }
+/* the speaker (audio.js) sits in the top right group; on a phone that group has no room for a fourth button, and
+   Mute all is in the options */
+@media (max-width: 479px) { .sound-toggle { display: none !important; } }

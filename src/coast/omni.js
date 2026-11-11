@@ -1,8 +1,12 @@
 // Omnipair's things on the headland. Three stones beside the way, one for each product (Leverage, Lending, Trade),
 // each painted as that product's app icon: a rounded tile in the product's gradient with its white glyph, standing on
 // a near-black footing that carries Omnipair's symbol in cream, with a soft light round it in the product's colour.
-// At the point stands the great mark, nine metres of Omnipair's symbol, near-black until all three stones have been
-// found; then it turns cream and a column of the three product colours goes up from it. That is where the walk ends.
+// At the point stands the great mark, nine metres of Omnipair's symbol, round which lies the Pool: a ring on the ground
+// that a rider crosses to bank his pairs (play.js). The mark is near-black until the first deposit; then it turns cream
+// and a column of the three product colours goes up from it, and each deposit makes it flare.
+//
+// On the way just past each stone stands its ring gate, upright, in the product's colour: riding through it is the
+// product's power-up. A gate that is cooling is dimmed.
 //
 // Beside each stone stands its board, as on Bruno Simon's project boards: a near-black frame with a cream edge round a
 // picture painted as the product's first slide (its gradient and glyph). E there browses the slides (boards.js).
@@ -23,6 +27,9 @@ export { PRODUCTS, GREAT };
 const NEAR = 4.5; // how close he must be to a stone's spot (between it and its board) for E to work
 const NEAR_GREAT = 9;
 const KEY = 'omnipair-world.found.v2';
+const LIT_KEY = 'omnipair-world.lit.v1';
+const GATE_R = 2.6, GATE_PAST = 11, POOL_R = 12.5; // a gate's radius and how far north of its stone; the Pool's radius
+const GATE_N = 44, POOL_N = 150; // strokes in each gate and in the Pool
 const N = PRODUCTS.length, G = N; // the stones are 0..N-1; the great mark is N
 const vec = (c) => `vec3(${c.map((x) => x.toFixed(4)).join(', ')})`;
 const RAMPS = PRODUCTS.flatMap((p) => p.ramp.map(rgb));
@@ -263,7 +270,9 @@ export function createOmni(shared, { remember = true } = {}) {
         d.alive = lvl * smoothstep(0.0, 0.04, t) * (1.0 - smoothstep(0.45, 1.0, t));
         d.pos = vec3(uBeacon[${G}].x + cos(a) * rad * (1.0 - 0.4 * t), uTop - 1.0 + pow(t, 1.5) * 90.0, uBeacon[${G}].z + sin(a) * rad * (1.0 - 0.4 * t));
         d.dir = vec3((r.w - 0.5) * 0.08, 1.0, 0.0);
-        d.size = vec2(0.45 + 0.55 * r.y, 5.0 + 9.0 * r.w);
+        float flare = max(uOmni[${G}] - 1.0, 0.0);
+        d.size = vec2(0.45 + 0.55 * r.y, 5.0 + 9.0 * r.w) * (1.0 + 0.5 * flare);
+        d.pos.xz += vec2(cos(a), sin(a)) * flare * 2.5 * (1.0 - t);
         vec3 base = RAMP[k * 4 + 2], light = RAMP[k * 4 + 3];
         vec3 c = mix(base, light, clamp(t * 1.3 + (r.y - 0.5) * 0.5, 0.0, 1.0));
         d.c1 = mix(c, ${vec(rgb(CREAM))}, 0.35 * step(0.85, r.w));
@@ -275,8 +284,76 @@ export function createOmni(shared, { remember = true } = {}) {
     minPx: [3, 6], maxPx: [500, 900], cells: [KNIFE, 4],
   }), 20);
 
+  // the gates on the way just north of each stone, facing along it, and the Pool round the great mark
+  const gates = stones.map((st) => {
+    const z = st.z - GATE_PAST, x = wayX(z);
+    const nx = wayX(z - 2) - wayX(z + 2), nz = -4, nl = Math.hypot(nx, nz);
+    return { key: st.key, i: st.i, x, y: heightAt(x, z) + GATE_R + 0.25, z, nx: nx / nl, nz: nz / nl, r: GATE_R };
+  });
+  const pool = { x: gx, y: gy, z: gz, r: POOL_R };
+  shared.uGate = { value: gates.map(() => 1) };
+  shared.uFlare = { value: 0 };
+  const rings = dabMesh(dabGeometry(N * GATE_N + POOL_N), dabMaterial(shared, {
+    head: /* glsl */ `uniform float uGate[${N}]; uniform float uFlare; uniform float uOmni[${N + 1}];
+      const vec3 RAMP[${4 * N}] = vec3[${4 * N}](${RAMPS.map(vec).join(', ')});
+      const vec3 GC[${N}] = vec3[${N}](${gates.map((g) => vec([g.x, g.y, g.z])).join(', ')});
+      const vec2 GN[${N}] = vec2[${N}](${gates.map((g) => `vec2(${g.nx.toFixed(4)}, ${g.nz.toFixed(4)})`).join(', ')});`,
+    body: /* glsl */ `
+      void makeDab(inout Dab d) {
+        float id = float(gl_InstanceID);
+        vec4 r = hash4(id * 3.71 + 9.0);
+        d.seed = id;
+        if (id < ${N * GATE_N}.0) {
+          int i = int(id / ${GATE_N}.0);
+          float k = mod(id, ${GATE_N}.0);
+          float a = (k + 0.4 * r.x) / ${GATE_N}.0 * TAU;
+          vec3 n = vec3(GN[i].x, 0.0, GN[i].y), u = normalize(cross(vec3(0.0, 1.0, 0.0), n));
+          float rad = ${GATE_R.toFixed(2)} * (1.0 + (r.y - 0.5) * 0.08);
+          d.pos = GC[i] + (u * cos(a) + vec3(0.0, sin(a), 0.0)) * rad + n * (r.z - 0.5) * 0.25;
+          d.dir = -u * sin(a) + vec3(0.0, cos(a), 0.0);
+          d.size = vec2(0.32 + 0.12 * r.w, 0.95 + 0.4 * r.x);
+          float ready = uGate[i];
+          // a bright run goes round the ring while it is ready
+          float run = pow(0.5 + 0.5 * cos(a - uTime * 2.4 - float(i)), 10.0) * ready;
+          vec3 c = mix(RAMP[i * 4 + 2], RAMP[i * 4 + 3], 0.25 * r.z + 0.6 * run);
+          d.c1 = c * mix(0.42, 1.08, ready);
+          d.c2 = mix(d.c1, RAMP[i * 4 + 3], 0.4);
+          d.lift = 0.3;
+          return;
+        }
+        float k = id - ${N * GATE_N}.0;
+        float a = (k + 0.5 * r.x) / ${POOL_N}.0 * TAU;
+        vec2 xz = vec2(${gx.toFixed(3)}, ${gz.toFixed(3)}) + vec2(cos(a), sin(a)) * ${POOL_R.toFixed(2)} * (1.0 + (r.y - 0.5) * 0.06);
+        d.pos = vec3(xz.x, heightAt(xz), xz.y);
+        if (mod(k, 2.0) < 0.5) {
+          d.lie = 1.0;
+          d.nrm = normalAt(xz);
+          d.height = 0.06 + 0.02 * r.z;
+          d.dir = vec3(-sin(a), 0.0, cos(a));
+          d.size = vec2(0.7 + 0.3 * r.w, 1.6 + 0.6 * r.x);
+        } else {
+          // every other one stands up, a low fence of strokes that shows over the flowers
+          d.base = 1.0;
+          d.dir = normalize(vec3(-sin(a) * 0.25, 1.0, cos(a) * 0.25));
+          d.size = vec2(0.4 + 0.15 * r.w, 1.1 + 0.5 * r.x);
+          d.lift = 0.1;
+        }
+        // cream between the three products' colours, every fourth stroke one of them in turn
+        int p = int(mod(k, 12.0));
+        vec3 cream = ${vec(rgb(CREAM))};
+        vec3 c = mod(k, 4.0) < 0.5 ? RAMP[(p / 4) * 4 + 2] : cream * (0.9 + 0.1 * r.z);
+        float lit = max(uOmni[${G}], 0.35);
+        float wave = pow(0.5 + 0.5 * cos(a * 3.0 - uTime * 1.6), 6.0);
+        d.c1 = c * (0.62 + 0.38 * lit + 0.25 * wave) + uFlare * 0.25;
+        d.c2 = mix(d.c1, cream, 0.3);
+        d.glaze = 1.0;
+      }`,
+    uniforms: { uImpasto: { value: 0.45 } },
+    minPx: [3, 6], maxPx: [400, 800], cells: [KNIFE, 4],
+  }), 19);
+
   const group = new THREE.Group();
-  group.add(built.group, glow, column);
+  group.add(built.group, glow, column, rings);
 
   // what has been found
   const found = stones.map(() => false);
@@ -285,7 +362,9 @@ export function createOmni(shared, { remember = true } = {}) {
   }
   const save = () => { if (remember) try { localStorage.setItem(KEY, JSON.stringify(found)); } catch { /* storage off */ } };
   const allFound = () => found.every(Boolean);
-  let greatLevel = allFound() ? 1 : 0;
+  let kindled = false;
+  if (remember) try { kindled = localStorage.getItem(LIT_KEY) === '1'; } catch { /* storage off */ }
+  let greatLevel = kindled ? 1 : 0, flare = 0;
 
   // things to walk into: [x, y, z, half sizes, yaw]
   const solid = [
@@ -301,7 +380,7 @@ export function createOmni(shared, { remember = true } = {}) {
   const emit = (name, key) => { for (const fn of listeners[name]) fn(key); };
 
   return {
-    group, caster, solid, stones, boards, great, found, counts: { omni: built.count },
+    group, caster, solid, stones, boards, great, gates, pool, found, counts: { omni: built.count },
     on(name, fn) { listeners[name].push(fn); return () => listeners[name].splice(listeners[name].indexOf(fn), 1); },
     emit,
     /** The one he is close enough to use (0..N-1 a stone, N the great mark once lit), or -1. */
@@ -310,7 +389,7 @@ export function createOmni(shared, { remember = true } = {}) {
       for (const b of all) {
         const s = b.i === G ? b : boards[b.i].spot;
         const d = Math.hypot(p.x - s.x, p.z - s.z);
-        const reach = b.i === G ? (allFound() ? NEAR_GREAT : 0) : NEAR;
+        const reach = b.i === G ? (kindled ? NEAR_GREAT : 0) : NEAR;
         if (d < reach && d < bestD) { best = b.i; bestD = d; }
       }
       return best;
@@ -329,10 +408,22 @@ export function createOmni(shared, { remember = true } = {}) {
     visit(i) { if (i < N && !found[i]) { found[i] = true; save(); emit('read', PRODUCTS[i].key); } },
     allFound,
     lit: () => greatLevel,
+    /** The first deposit lights the great mark, for good; each one makes it flare. */
+    kindle() {
+      flare = 1;
+      if (kindled) return;
+      kindled = true;
+      if (remember) try { localStorage.setItem(LIT_KEY, '1'); } catch { /* storage off */ }
+    },
+    get kindled() { return kindled; },
+    /** How ready gate i is again, 0 just used .. 1 ready. */
+    gate(i, ready) { shared.uGate.value[i] = ready; },
     update(dt) {
-      greatLevel += ((allFound() ? 1 : 0) - greatLevel) * (1 - Math.exp(-dt / 1.2));
+      greatLevel += ((kindled ? 1 : 0) - greatLevel) * (1 - Math.exp(-dt / 1.2));
+      flare *= Math.exp(-dt / 0.9);
       for (let i = 0; i < N; i++) shared.uOmni.value[i] = found[i] ? 1 : 0.42;
-      shared.uOmni.value[G] = greatLevel;
+      shared.uOmni.value[G] = greatLevel + flare;
+      shared.uFlare.value = flare;
     },
   };
 }

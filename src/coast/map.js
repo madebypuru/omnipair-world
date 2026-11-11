@@ -70,8 +70,10 @@ export function createMap({ places, paint, canvas, heightAt, place, onOpen, onTr
   // the share of the canvas's width and height the area takes
   const crop = { w: 1, h: 1 };
 
+  let painted = false;
   /** Paints the headland from above into the map's picture, with the page's canvas as the easel. */
   function render() {
+    painted = true;
     const bw = canvas.width, bh = canvas.height;
     camera.aspect = bw / bh;
     // the area fills the picture's height, or its width on a narrow screen
@@ -173,5 +175,11 @@ export function createMap({ places, paint, canvas, heightAt, place, onOpen, onTr
       me.style.setProperty('--turn', `${Math.PI - yaw}rad`);
     },
     places,
+    /** The painted picture from above and where a point of the ground falls in it (0..1), for the play HUD's round
+     *  map. Painted the first time it is asked for. */
+    picture() {
+      if (!painted) render();
+      return { image: picture, spot };
+    },
   };
 }

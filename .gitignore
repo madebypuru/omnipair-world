@@ -15,3 +15,10 @@ dist-sea/
 dist-map/
 dist-boards/
 .claude/
+dist-ride/
+dist-game/
+dist-title/
+dist-world/
+.probe.mjs
+.shots-world/
+.cost.mjs

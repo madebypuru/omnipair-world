@@ -36,7 +36,7 @@ void main() {
 `;
 
 // A palette is [light, half-tone, shade] and, where a lamp is carried, the thing's own colour for its light to fall on.
-function paint(shared, [L, M, S, A = L], { skinned = false, lower = null, split = -10, grain = 2.2 } = {}) {
+export function paint(shared, [L, M, S, A = L], { skinned = false, lower = null, split = -10, grain = 2.2 } = {}) {
   const col = (c) => ({ value: new THREE.Color(...c) });
   const [L2, M2, S2, A2 = L2] = lower ?? [L, M, S, A];
   return new THREE.ShaderMaterial({

@@ -1,6 +1,7 @@
 // Keyboard, mouse and gamepad, read once a frame into one plain state.
 //   move: {x, y} (x right, y forward, length 0..1), walk, sprint, strafe (held),
 //   jump (pressed this frame), look: {x, y} (radians this frame), zoom (wheel steps this frame)
+// and for the board: hold (Space held), mount (F pressed), push and brake (0..1), boost (held)
 export class Input {
   constructor(el, { pads = true } = {}) {
     this.el = el;
@@ -9,7 +10,7 @@ export class Input {
     this.pressed = new Set();
     this.mouse = { x: 0, y: 0, wheel: 0, right: false, drag: false };
     this.walkToggle = false;
-    this.pad = { a: false, l3: false, sprint: false };
+    this.pad = { a: false, l3: false, y: false, sprint: false };
     this.sensitivity = 0.0022;
     this.override = null; // scripted input for captures
     this.lockable = true;
@@ -51,8 +52,13 @@ export class Input {
       move: { x, y },
       walk: this.walkToggle !== (k.has('AltLeft') || k.has('AltRight')),
       sprint: k.has('ShiftLeft') || k.has('ShiftRight'),
-      strafe: (this.mouse.right && document.pointerLockElement === this.el) || k.has('KeyF'),
+      strafe: this.mouse.right && document.pointerLockElement === this.el,
       jump: this.pressed.has('Space'),
+      hold: k.has('Space'),
+      mount: this.pressed.has('KeyF'),
+      push: k.has('KeyW') || k.has('ArrowUp') ? 1 : 0,
+      brake: k.has('KeyS') || k.has('ArrowDown') ? 1 : 0,
+      boost: k.has('ShiftLeft') || k.has('ShiftRight'),
       look: { x: this.mouse.x * this.sensitivity, y: this.mouse.y * this.sensitivity },
       zoom: this.mouse.wheel,
       device: 'keyboard',
@@ -61,7 +67,7 @@ export class Input {
     this.pressed.clear();
 
     // gamepad: left stick moves (its tilt sets the speed), right stick looks, L3 sprints,
-    // A jumps, LT strafes, d-pad up/down zooms
+    // A jumps (held: glides), LT strafes, d-pad up/down zooms; on the board RT pushes, LT brakes, X boosts, Y steps off
     const pad = this.pads ? [...(navigator.getGamepads?.() ?? [])].find((p) => p && p.connected) : null;
     if (pad) {
       const dz = (v) => (Math.abs(v) < 0.15 ? 0 : Math.sign(v) * (Math.abs(v) - 0.15) / 0.85);
@@ -78,6 +84,12 @@ export class Input {
       if (this.pad.sprint || btn(5)) s.sprint = true;
       if (btn(0) && !this.pad.a) s.jump = true;
       if ((pad.buttons[6]?.value ?? 0) > 0.4) s.strafe = true;
+      s.push = Math.max(s.push, pad.buttons[7]?.value ?? 0);
+      s.brake = Math.max(s.brake, pad.buttons[6]?.value ?? 0);
+      if (btn(2)) s.boost = true;
+      if (btn(0)) s.hold = true;
+      if (btn(3) && !this.pad.y) s.mount = true;
+      this.pad.y = btn(3);
       if (btn(12)) s.zoom -= 4 * dt;
       if (btn(13)) s.zoom += 4 * dt;
       this.pad.a = btn(0); this.pad.l3 = btn(10);

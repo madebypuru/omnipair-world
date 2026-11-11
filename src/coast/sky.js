@@ -1,17 +1,20 @@
-// The sunset sky, laid with the knife: a wash, then broad flat slabs of its own colours over the whole of it,
-// running in long diagonals the way the reference paintings lay them, then the clouds, peach and gold on the side
-// toward the sun and lilac blue away from it, and the sun itself low over the sea.
+// The dusk sky, laid with the knife. The dome is the underpainting: the wash and, solid in it, the cumulus banks
+// over the lagoon (paint.js cloudAt), so every cloud is a whole form before a stroke is laid. Then broad slabs of the
+// sky's own colours over the blue, kept off the clouds and made smaller toward their edges so no slab crosses one;
+// then strokes inside each billow that run round its swell; the sun on the sea's rim; and the first stars high in
+// the east.
 import * as THREE from 'three';
 import { COMMON } from '../oilpaint/common.js';
 import { dabMaterial, dabGeometry, dabMesh } from '../oilpaint/dabs.js';
 import { KNIFE } from '../oilpaint/brush.js';
 import { rng } from '../world/noise.js';
-import { COAST } from './paint.js';
-import { SUN } from './land.js';
+import { COAST, BILLOWS } from './paint.js';
+
+const FAR = 800;
 
 export function createSky(shared) {
   const group = new THREE.Group();
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 16), new THREE.ShaderMaterial({
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 20), new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
     uniforms: shared,
     side: THREE.BackSide,
@@ -26,7 +29,7 @@ export function createSky(shared) {
       ${COAST}
       in vec3 vDir;
       layout(location = 0) out vec4 outC;
-      void main() { outC = vec4(coastSky(normalize(vDir)) * 0.95, 1.0); }`,
+      void main() { outC = vec4(duskSky(normalize(vDir)) * 0.95, 1.0); }`,
   }));
   dome.frustumCulled = false;
   dome.renderOrder = -10;
@@ -45,105 +48,93 @@ export function createSky(shared) {
     return new Float32Array(list.flat());
   };
 
-  // --- the knife's slabs over the whole sky ---
+  // --- the knife's slabs over the blue ---
   {
-    const count = 2000;
+    const count = 3600;
     group.add(dabMesh(dabGeometry(count, { aDir: [dirsOver(count, -0.02, 1.0), 4] }), dabMaterial(shared, {
       head: COAST + /* glsl */ `in vec4 aDir;`,
       body: /* glsl */ `
         void makeDab(inout Dab d) {
           vec4 r = hash4(aDir.w);
           vec3 v = normalize(aDir.xyz);
-          d.pos = cameraPosition + v * 800.0;
-          // long diagonals: they fall toward the sun, as the reference skies are laid
+          float sd;
+          cloudAt(v, sd);
+          // the clouds have their own strokes: a slab is never laid over one, and shrinks as it nears one
+          if (sd < 0.004) { d.alive = 0.0; return; }
+          d.pos = cameraPosition + v * ${FAR}.0;
           vec3 level = normalize(cross(vec3(0.0, 1.0, 0.0), v));
           float side = sign(dot(level, skySun()));
-          // the sweep bends with height, so the slabs fan out in arcs over the dome instead of lying in rows
           vec4 k = hash4(aDir.w * 3.7 + 1.3);
-          float fall = 0.15 + 0.55 * smoothstep(0.0, 0.8, v.y) + 0.7 * (r.x - 0.5);
+          // near the horizon they lie level, as a sunset is laid; higher up they fall in long diagonals
+          float fall = (0.15 + 0.55 * smoothstep(0.0, 0.8, v.y) + 0.7 * (r.x - 0.5)) * smoothstep(0.03, 0.3, v.y);
           d.dir = normalize(level - vec3(0.0, side * fall, 0.0));
           d.spin = (k.x - 0.5) * 0.5;
-          // a few broad slabs, many middling, and long thin drags among them
-          d.size = vec2(30.0 + 150.0 * pow(r.y, 1.6), 1.0);
-          d.size.y = d.size.x * (k.y < 0.25 ? 2.4 + 1.2 * k.z : 0.9 + 1.4 * r.z);
-          // slabs, wedges, drags aside and long drags; no blobs or petals in the sky
+          d.size = vec2(16.0 + 70.0 * pow(r.y, 1.6), 1.0);
+          d.size.y = d.size.x * (k.y < 0.25 ? 2.2 + 1.0 * k.z : 0.9 + 1.2 * r.z);
+          float room = sd * ${FAR}.0 * 1.6;
+          d.size *= min(1.0, room / max(d.size.y, 1.0));
           { float m = floor(k.w * 4.0); d.cell = m < 3.0 ? ${KNIFE}.0 + m : ${KNIFE + 5}.0; }
-          // a long drag tapers or breaks up: a long strip with even sides would read as tape
           if (d.size.y > 2.2 * d.size.x) d.cell = k.w < 0.5 ? ${KNIFE + 1}.0 : ${KNIFE + 5}.0;
-          // near the sun the slabs are small, so its gold stays a small patch instead of spreading over a big one
-          d.size *= mix(0.5, 1.0, smoothstep(0.9985, 0.993, dot(v, skySun())));
-          // each slab takes the sky a little off from where it lies: the knife drags colour from its neighbours
-          vec3 c = coastSky(normalize(v + (r.wxy - 0.5) * vec3(0.12, 0.05, 0.12)));
-          d.c1 = jitter(c, r.yzw, 0.22);
-          d.c2 = jitter(c * 1.08 + vec3(0.02, 0.02, 0.03), r.wxy, 0.25);
+          d.size *= mix(0.45, 1.0, smoothstep(0.9985, 0.993, dot(v, skySun())));
+          d.size.x *= mix(0.45, 1.0, smoothstep(0.02, 0.2, v.y));
+          vec3 c = coastSky(normalize(v + (r.wxy - 0.5) * vec3(0.05, 0.02, 0.05)));
+          d.c1 = jitter(c, r.yzw, 0.1);
+          d.c2 = jitter(c * 1.05 + vec3(0.015, 0.015, 0.025), r.wxy, 0.12);
           d.seed = aDir.w;
           d.lift = 0.0;
         }`,
-      uniforms: { uImpasto: { value: 0.5 } },
-      minPx: [16, 28], maxPx: [900, 1800], cells: [KNIFE, 6], depthTest: false, depthWrite: false,
+      uniforms: { uImpasto: { value: 0.14 } },
+      minPx: [10, 18], maxPx: [700, 1400], cells: [KNIFE, 6], depthTest: false, depthWrite: false,
     }), -9));
   }
 
-  // --- the clouds ---
-  // Scattered over the sky, a little thicker toward the sun; each is kept only where a slow drift of cloud is, and
-  // the drifts are kept apart, so the clouds stand as separate groups with the blue between them.
+  // --- the clouds: strokes inside every billow, back ones first, running round its swell ---
   {
-    const count = 3000;
-    const dirs = new Float32Array(count * 4);
-    let n = 0;
-    while (n < count) {
-      const a = rand() * Math.PI * 2, y = 0.02 + Math.pow(rand(), 1.6) * 0.75, r = Math.sqrt(1 - y * y);
-      const v = new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
-      if (rand() > 0.6 + 0.4 * Math.max(0, v.dot(SUN))) continue;
-      dirs.set([v.x, v.y, v.z, rand() * 1000], n++ * 4);
-    }
-    group.add(dabMesh(dabGeometry(count, { aDir: [dirs, 4] }), dabMaterial(shared, {
-      head: COAST + /* glsl */ `in vec4 aDir;`,
+    const list = [];
+    BILLOWS.all.forEach(([az, el, r, seed], b) => {
+      const n = Math.round(6 + 30 * (r / 0.03) ** 2);
+      for (let i = 0; i < n; i++) {
+        const a = rand() * Math.PI * 2, q = Math.sqrt(rand()) * r * 0.96;
+        list.push([az + Math.cos(a) * q / Math.cos(el), el + Math.sin(a) * q, a, rand() * 1000, el, b]);
+      }
+    });
+    // farther back (higher) billows first, so the lower ones, which stand in front, are laid over them
+    list.sort((p, q) => q[4] - p[4] || q[5] - p[5]);
+    const data = new Float32Array(list.flatMap((s) => s.slice(0, 4)));
+    group.add(dabMesh(dabGeometry(list.length, { aC: [data, 4] }), dabMaterial(shared, {
+      head: COAST + /* glsl */ `in vec4 aC;`,
       body: /* glsl */ `
         void makeDab(inout Dab d) {
-          vec4 r = hash4(aDir.w);
-          vec3 v = normalize(aDir.xyz);
-          float az = atan(v.x, -v.z);
-          // banks of cloud drift slowly along with the wind
-          vec2 at = vec2(az * 0.8 + uTime * 0.0012, v.y * 3.2);
-          float bank = texture(tNoise, at).r * 0.7 + texture(tNoise, at * 2.7 + 0.3).g * 0.3;
-          float body = smoothstep(0.68, 0.76, bank + (r.x - 0.5) * 0.06);
-          d.alive = body;
-          if (body <= 0.0) return;
-          d.pos = cameraPosition + v * 800.0;
-          vec3 level = normalize(cross(vec3(0.0, 1.0, 0.0), v));
-          float side = sign(dot(level, skySun()));
-          vec4 k = hash4(aDir.w * 3.7 + 1.3);
-          d.dir = normalize(level - vec3(0.0, side * (0.3 + 0.7 * (r.y - 0.5)), 0.0));
-          d.spin = (k.x - 0.5) * 0.6;
-          d.size = vec2(22.0 + 90.0 * pow(r.y, 1.5), 1.0) * mix(1.0, 0.7, v.y);
-          d.size.y = d.size.x * (k.y < 0.3 ? 2.3 + 1.0 * k.z : 0.9 + 1.2 * r.z);
-          // slabs, wedges, drags aside and long drags; no blobs or petals in the sky
-          { float m = floor(k.w * 4.0); d.cell = m < 3.0 ? ${KNIFE}.0 + m : ${KNIFE + 5}.0; }
-          // a long drag tapers or breaks up: a long strip with even sides would read as tape
-          if (d.size.y > 2.2 * d.size.x) d.cell = k.w < 0.5 ? ${KNIFE + 1}.0 : ${KNIFE + 5}.0;
-          // lit from below and from the side toward the sun: apricot and gold there, lilac blue on the far side
-          float toSun = max(dot(normalize(vec3(v.x, 0.0, v.z)), normalize(vec3(skySun().x, 0.0, skySun().z))), 0.0);
-          float lit = clamp(pow(toSun, 4.0) * 1.1 + (bank - 0.68) * 1.6 + (r.w - 0.5) * 0.3 - smoothstep(0.1, 0.4, v.y) * 0.5, 0.0, 1.0);
-          vec3 cool = mix(vec3(0.4, 0.56, 0.86), vec3(0.62, 0.7, 0.9), r.z);
-          // peach and apricot; gold only in the cloud right round the sun
-          vec3 warm = mix(vec3(0.97, 0.6, 0.47), vec3(0.99, 0.7, 0.5), r.y);
-          warm = mix(warm, vec3(1.0, 0.8, 0.5), smoothstep(0.99, 0.999, dot(v, skySun())) * 0.8);
-          vec3 c = mix(cool, warm, smoothstep(0.25, 0.7, lit));
-          // the undersides, away from the sun, go to a soft violet grey
-          c = mix(c, vec3(0.58, 0.52, 0.78), (1.0 - lit) * smoothstep(0.62, 0.5, bank) * 0.6);
-          d.c1 = jitter(c, r.yzw, 0.12);
-          // wet into wet: the blade drags the sky beneath through the cloud's paint
-          d.c2 = mix(jitter(c, r.wxy, 0.2), coastSky(normalize(v + (k.zxy - 0.5) * 0.05)), 0.4 + 0.25 * k.z);
-          d.seed = aDir.w;
+          vec4 r = hash4(aC.w);
+          vec4 k = hash4(aC.w * 3.7 + 1.3);
+          float az = aC.x + uTime * 0.0004, el = aC.y;
+          vec3 v = vec3(sin(az) * cos(el), sin(el), -cos(az) * cos(el));
+          float sd;
+          vec4 cl = cloudAt(v, sd);
+          if (cl.a < 0.5) { d.alive = 0.0; return; }
+          d.pos = cameraPosition + v * ${FAR}.0;
+          // round the swell, now and then across it
+          vec3 east = normalize(vec3(cos(az), 0.0, sin(az)));
+          vec3 up = normalize(cross(east, v));
+          float a = aC.z + 1.5708 + (r.x - 0.5) * 0.9 + (k.x < 0.2 ? 1.2 : 0.0);
+          d.dir = normalize(east * cos(a) + up * sin(a));
+          d.size = vec2(5.0 + 11.0 * r.y, 1.0);
+          d.size.y = d.size.x * (1.2 + 1.4 * r.z);
+          // never past the cloud's edge
+          float room = max(-sd * ${FAR}.0 * 2.2, 3.0);
+          d.size *= min(1.0, room / d.size.y);
+          { float m = floor(k.w * 5.0); d.cell = m < 3.0 ? ${KNIFE}.0 + m : m < 4.0 ? ${KNIFE + 3}.0 : ${KNIFE + 6}.0; }
+          d.c1 = jitter(cl.rgb, r.yzw, 0.12);
+          d.c2 = mix(cl.rgb * 1.06 + vec3(0.03, 0.02, 0.0), vec3(1.0, 0.95, 0.86), 0.12 * k.z);
+          d.seed = aC.w;
           d.lift = 0.0;
         }`,
-      uniforms: { uImpasto: { value: 0.5 } },
-      minPx: [12, 20], maxPx: [700, 1500], cells: [KNIFE, 6], depthTest: false, depthWrite: false,
+      uniforms: { uImpasto: { value: 0.55 } },
+      minPx: [5, 8], maxPx: [500, 900], cells: [KNIFE, 6], depthTest: false, depthWrite: false,
     }), -8.5));
   }
 
-  // --- the sun, low over the sea ---
+  // --- the sun, on the sea's rim ---
   {
     const count = 60;
     const data = new Float32Array(count * 4);
@@ -155,11 +146,11 @@ export function createSky(shared) {
           vec4 r = hash4(aS.w);
           vec3 side = normalize(cross(vec3(0.0, 1.0, 0.0), skySun()));
           vec3 up = cross(skySun(), side);
-          vec3 v = normalize(skySun() + (side * aS.x + up * aS.y) * 0.035 * aS.z);
-          d.pos = cameraPosition + v * 800.0;
+          vec3 v = normalize(skySun() + (side * aS.x + up * aS.y * 0.7) * 0.03 * aS.z);
+          d.pos = cameraPosition + v * ${FAR}.0;
           d.dir = side;
-          d.size = vec2(6.0 + 6.0 * r.y, 14.0 + 10.0 * r.z) * (1.0 - 0.5 * aS.z);
-          vec3 c = mix(vec3(1.0, 0.97, 0.78), vec3(1.0, 0.8, 0.48), aS.z);
+          d.size = vec2(5.0 + 5.0 * r.y, 12.0 + 9.0 * r.z) * (1.0 - 0.5 * aS.z);
+          vec3 c = mix(vec3(1.0, 0.95, 0.74), vec3(1.0, 0.72, 0.4), aS.z);
           d.c1 = c; d.c2 = mix(c, vec3(1.0), 0.3);
           d.seed = aS.w;
           d.lift = 0.0;
@@ -167,6 +158,35 @@ export function createSky(shared) {
       uniforms: { uImpasto: { value: 0.3 } },
       minPx: [4, 6], maxPx: [200, 300], cells: [KNIFE + 4, 1], depthTest: false, depthWrite: false,
     }), -8.2));
+  }
+
+  // --- the first stars: single touches high in the east, where the blue is deepest ---
+  {
+    const count = 70;
+    const data = new Float32Array(count * 4);
+    for (let i = 0; i < count; i++) {
+      const az = 0.1 + rand() * 2.9, el = 0.32 + Math.pow(rand(), 0.7) * 1.0;
+      data.set([az, el, rand(), rand() * 1000], i * 4);
+    }
+    group.add(dabMesh(dabGeometry(count, { aS: [data, 4] }), dabMaterial(shared, {
+      head: COAST + /* glsl */ `in vec4 aS;`,
+      body: /* glsl */ `
+        void makeDab(inout Dab d) {
+          vec3 v = vec3(sin(aS.x) * cos(aS.y), sin(aS.y), -cos(aS.x) * cos(aS.y));
+          if (cloudAt(v).a > 0.5) { d.alive = 0.0; return; }
+          d.pos = cameraPosition + v * ${FAR}.0;
+          d.dir = vec3(0.0, 1.0, 0.0);
+          d.size = vec2(1.2 + 1.4 * aS.z * aS.z);
+          float tw = 0.85 + 0.15 * sin(uTime * (1.3 + aS.z * 2.0) + aS.w);
+          vec3 c = mix(vec3(0.82, 0.86, 1.0), vec3(1.0, 0.92, 0.78), fract(aS.w * 3.1)) * tw;
+          d.c1 = c; d.c2 = c;
+          d.seed = aS.w;
+          d.lift = 0.0;
+          d.cell = ${KNIFE + 4}.0;
+        }`,
+      uniforms: { uImpasto: { value: 0.0 } },
+      minPx: [2.2, 2.2], maxPx: [5, 5], cells: [KNIFE + 4, 1], depthTest: false, depthWrite: false,
+    }), -8.4));
   }
   return { group };
 }

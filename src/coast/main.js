@@ -17,18 +17,22 @@ import { Animator } from '../figure/animator.js';
 import { Player } from '../figure/player.js';
 import { Input } from '../figure/input.js';
 import { Follow } from '../figure/camera.js';
-import { prepareLand, createLand, heightAt, wayX, edgeX, START, POINT, ARCH, SUN, EXTENT } from './land.js';
+import { prepareLand, createLand, heightAt, shoreAt, landAt, wayX, edgeX, START, POINT, ARCH, SUN, EXTENT } from './land.js';
 import { createGround } from './ground.js';
 import { createSky } from './sky.js';
 import { createSea } from './sea.js';
 import { createArch } from './arch.js';
 import { createOmni } from './omni.js';
+import { buildPlaces, createPlaces } from './places.js';
 import { createHud } from './hud.js';
 import { createBrowse } from './boards.js';
 import { createMap } from './map.js';
 import { createGoals, createGoalsUi, twoStep } from './achievements.js';
 import { loadSettings, createOptionsUi } from './options.js';
 import { CREAM, iconMarkup, symbolMarkup } from './brand.js';
+import { createRide } from './ride.js';
+import { createPlay } from './play.js';
+import { createTitle } from './title.js';
 
 const q = new URLSearchParams(location.search);
 const capture = q.has('capture');
@@ -87,7 +91,8 @@ const sky = createSky(shared);
 const sea = createSea(shared);
 const arch = createArch(shared);
 const omni = createOmni(shared, { remember: !capture && !patchTest });
-land.shade.add(arch.caster, omni.caster);
+const places = buildPlaces(shared); // the pavilion, jetty, boats, lamps and people (places.js): cast shade too
+land.shade.add(arch.caster, omni.caster, places.caster);
 // The sun sees the whole headland from just over the sea: its picture of the shade is long and shallow, the
 // cliffs' shadows lying far across the shelf and the stacks'.
 const shade = createShade(renderer, shared, land.shade, { sun: SUN, size: [4096, 2048], box: [760, 190], centre: [40, 20, 40], back: 1400, near: 300, far: 2500 });
@@ -178,6 +183,7 @@ function place(x, z, yaw) {
   player.yaw = player.lastYaw = yaw;
   animator.lock = null; animator.lockOff = null;
   animator.enter(animator.locoState({ strafe: false }), 0.05);
+  ride?.moved(x, z, yaw);
 }
 
 // Omnipair's stones: E by one browses its board (boards.js; reading the last slide marks it found), E again leaves.
@@ -305,28 +311,38 @@ function tick(dt) {
   const inp = (menuOpen() || browse.at >= 0) && !input.override ? (input.read(dt), IDLE) : input.read(dt);
   first += ((firstKey ? 1 : 0) - first) * (1 - Math.exp(-6 * dt));
   fp = first * first * (3 - 2 * first);
-  player.update(dt, inp, follow.yaw);
-  // into the sea, or off the map: he starts again
-  if (player.feet.y < 0.3 || Math.max(Math.abs(player.feet.x), Math.abs(player.feet.z)) > EXTENT - 30) {
-    if (player.feet.y < 0.3) goals.note('sea');
-    place(spawn.x, spawn.z, Math.PI);
+  // on the board (ride.js), or walking as before
+  const riding = ride.drive(dt, inp);
+  let root;
+  if (riding) {
+    root = ride.place();
+    animator.update(dt, { speed: 0, moveAngle: 0, grounded: true });
+    ride.pose(dt);
+  } else {
+    player.update(dt, inp, follow.yaw);
+    // into deep water, or off the map: ashore again, on the board
+    if (heightAt(player.feet.x, player.feet.z) < -0.6 && player.feet.y < -0.3 || Math.max(Math.abs(player.feet.x), Math.abs(player.feet.z)) > EXTENT - 30) {
+      if (player.feet.y < 0.3) goals.note('sea');
+      ride.ashore();
+    }
+    ride.place();
+    root = player.visualRoot(dt);
+    man.object.position.copy(root);
+    man.object.rotation.set(0, player.yaw, 0);
+    man.object.updateMatrixWorld(true);
+    const local = player.vel.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -player.yaw);
+    animator.update(dt, { speed: player.mode === 'move' ? player.speed : Math.hypot(local.x, local.z), moveAngle: player.moveAngle, grounded: player.grounded });
+    animator.relaxHands(player.speed);
+    animator.uprightTrunk(dt, player.speed, player.grounded && player.mode !== 'jump' && player.mode !== 'air' ? 1 : 0.3);
+    const lookW = player.mode === 'move' || player.mode === 'idleExtra' ? THREE.MathUtils.clamp(1 - (player.speed - 1.5) / 2, 0, 1) : 0;
+    animator.lookToward(dt, camera.getWorldDirection(new THREE.Vector3()), lookW);
+    animator.armClearance(dt);
+    if (player.mode === 'move' && !player.strafe) animator.leanInto(dt, player.turnRate, player.speed, player.accelF);
+    else animator.leanInto(dt, 0, 0, 0);
+    const onGround = player.grounded && player.mode !== 'jump' && player.mode !== 'air';
+    animator.placeFeet(dt, (x, z, from) => player.ground(x, z, from, 1.4), root.y, onGround ? 1 : 0);
+    man.object.updateMatrixWorld(true);
   }
-  const root = player.visualRoot(dt);
-  man.object.position.copy(root);
-  man.object.rotation.set(0, player.yaw, 0);
-  man.object.updateMatrixWorld(true);
-  const local = player.vel.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -player.yaw);
-  animator.update(dt, { speed: player.mode === 'move' ? player.speed : Math.hypot(local.x, local.z), moveAngle: player.moveAngle, grounded: player.grounded });
-  animator.relaxHands(player.speed);
-  animator.uprightTrunk(dt, player.speed, player.grounded && player.mode !== 'jump' && player.mode !== 'air' ? 1 : 0.3);
-  const lookW = player.mode === 'move' || player.mode === 'idleExtra' ? THREE.MathUtils.clamp(1 - (player.speed - 1.5) / 2, 0, 1) : 0;
-  animator.lookToward(dt, camera.getWorldDirection(new THREE.Vector3()), lookW);
-  animator.armClearance(dt);
-  if (player.mode === 'move' && !player.strafe) animator.leanInto(dt, player.turnRate, player.speed, player.accelF);
-  else animator.leanInto(dt, 0, 0, 0);
-  const onGround = player.grounded && player.mode !== 'jump' && player.mode !== 'air';
-  animator.placeFeet(dt, (x, z, from) => player.ground(x, z, from, 1.4), root.y, onGround ? 1 : 0);
-  man.object.updateMatrixWorld(true);
   figure.updateCloak(dt, air, heightAt);
   omni.update(dt);
   quest.near = omni.nearest(player.feet);
@@ -347,13 +363,18 @@ function tick(dt) {
     pitch: follow.pitch, reach: follow.want, first: firstKey && first > 0.9,
   });
   map?.update(feet.x, feet.z, player.yaw);
+  // --- module updates ---
+  for (const m of modules) m.update?.(dt);
+  // --- end module updates ---
   if ((goalsClock += dt) > 0.5) { goalsClock = 0; goalsUi?.refresh(); }
 
   // a rock between the eye and him brings the eye in; over the ground it rises instead
-  follow.update(dt, root, inp.look, inp.zoom, (o, d, max) => {
+  const eyeOn = ride.cameraBefore(dt, inp) ?? root;
+  follow.update(dt, eyeOn, inp.look, inp.zoom, (o, d, max) => {
     const hit = player.castRay(o, d, max);
     return hit != null && o.y + d.y * hit - heightAt(o.x + d.x * hit, o.z + d.z * hit) < 0.5 ? null : hit;
-  }, (x, z) => heightAt(x, z) + 0.55);
+  }, (x, z) => Math.max(heightAt(x, z), 0) + 0.55);
+  ride.cameraAfter(dt);
   if (fp > 0.002) {
     // the eye comes forward into his head and looks where the mouse has it look
     const cp = Math.cos(follow.pitch), sp = Math.sin(follow.pitch);
@@ -363,6 +384,7 @@ function tick(dt) {
     camera.position.lerp(eyeAt, fp);
     camera.lookAt(outlook.lerp(eyeAt.addScaledVector(gaze, 6), fp));
   }
+  title.update(dt);
   setLens();
   browse.update(dt, camera);
   man.object.visible = figure.cloakMesh.visible = figure.dabs.visible = fp < 0.5;
@@ -372,7 +394,7 @@ function tick(dt) {
   draw();
 }
 function setLens() {
-  camera.fov = fov + 18 * fp;
+  camera.fov = fov + 18 * fp + (ride?.fov ?? 0);
   camera.near = 0.3 - 0.2 * fp;
   camera.updateProjectionMatrix();
 }
@@ -456,6 +478,27 @@ window.lab = {
     great: omni.great,
   },
 };
+// The game's modules (BRIEF.md, Contracts): each is create(ctx) with update(dt), and they talk through ctx's events.
+const listeners = new Map();
+const ctx = {
+  shared, scene, camera, renderer, frame, physics, RAPIER, player, animator, follow, input, figure, omni,
+  heightAt, shoreAt, landAt, hud, options, achievements: goals, goalsUi, map, lab: window.lab, capture, patchTest,
+  time: () => time,
+  place: (x, z, yaw) => place(x, z, yaw),
+  on(name, fn) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); return () => listeners.get(name).delete(fn); },
+  emit(name, data) { for (const fn of listeners.get(name) ?? []) fn(data); },
+  ride: { mounted: false, speed: 0, airborne: false, position: new THREE.Vector3(), heading: 0, glide: 1, boost: 0 },
+  game: null,
+};
+// --- modules: one create(ctx) line each, as modules.push(createX(ctx)) ---
+const modules = [];
+modules.push(createPlaces(ctx, places));
+const ride = createRide(ctx);
+modules.push(createPlay(ctx));
+const title = createTitle(ctx); // after the eye is placed (title.update below), not in modules
+// --- end modules ---
+window.lab.ctx = ctx;
+window.lab.ride = ride.lab;
 
 // The picture follows the size of its own box, not only the window's resize event: a browser's side panel sliding
 // away can change the box without that event arriving at its final size, and the canvas is then stretched by CSS.
@@ -544,6 +587,9 @@ async function autopilot() {
     if (i < omni.stones.length - 1) key('ArrowDown');
   }
   key('KeyE');
+  // the great mark lights at the first deposit: bank a pair at the Pool
+  L.game?.give(1, 1);
+  L.game?.deposit();
   const lit = await until(() => omni.lit() > 0.9, 15000);
   const st = L.omni.state();
   console.log(lit && st.count === omni.stones.length ? 'pass beacon-lights' : `fail beacon-lights: ${JSON.stringify(st)}`);

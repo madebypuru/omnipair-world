@@ -30,6 +30,17 @@ export const VIEWS = {
   'coast-point': [-8, -85, -19, -150, { run: 0.8 }],
   // the same from above, to read the whole headland
   'coast-high': [29.8, 300, 29.8, 270, { run: 0, view: [[140, 160, 360], [0, 20, 60]] }],
+  // dusk: the lagoon from the beach at eye height, its reflection; the pavilion from 40 m and 10 m; a lamp-lit
+  // stretch of the way; the clifftop looking west at the sun; the whole world from above; the arch
+  'dusk-lagoon': [176, 0, 200, 0, { run: 0, view: [[178, 2.2, 6], [330, 6, -20]] }],
+  'dusk-lagoon-north': [176, 0, 200, 0, { run: 0, view: [[182, 2.0, 120], [300, 7, -60]] }],
+  'dusk-pavilion-40': [176, 30, 200, 30, { run: 0, view: [[214, 3.2, 52], [252, 3.5, 30]] }],
+  'dusk-pavilion-10': [176, 30, 200, 30, { run: 0, view: [[236, 2.4, 34], [252, 3.0, 28]] }],
+  'dusk-way': [36, 160, 30, 120, { run: 0, pitch: 0.05, dist: 6 }],
+  'dusk-sun': [14, 110, -66, 54, { run: 0, pitch: 0.05, dist: 7 }],
+  'dusk-above': [29.8, 300, 29.8, 270, { run: 0, view: [[-60, 330, 420], [220, 0, -40]] }],
+  'dusk-clifftop-east': [40, 20, 200, 20, { run: 0, view: [[38, 44, 30], [260, 4, 20]] }],
+  'dusk-arch': [-10, -40, -95, -95, { run: 0, pitch: 0.12, dist: 7 }],
 };
 
 // --view "x,z,fx,fz,run,dist,pitch,yaw" --name n: a view given on the command line

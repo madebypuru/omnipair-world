@@ -8,7 +8,7 @@ import { dabMaterial, dabGeometry, dabMesh } from '../oilpaint/dabs.js';
 import { KNIFE } from '../oilpaint/brush.js';
 import { noise, rng } from '../world/noise.js';
 import { COAST } from './paint.js';
-import { EXTENT, heightAt, landAt, normalAt, edgeX, wayX } from './land.js';
+import { EXTENT, heightAt, landAt, coastAt, normalAt, edgeX, wayX } from './land.js';
 
 const near = /* glsl */ `
 // knife marks: 8 rect, 9 wedge, 10 skewed, 11 rounded, 12 blob, 13 chipped, 14 ridged, 15 leaf
@@ -23,7 +23,8 @@ void makeDab(inout Dab d) {
   d.alive = ringGrow(dist, lod);
   if (d.alive <= 0.0) return;
   float h = heightAt(xz);
-  if (h < 0.15 || max(abs(xz.x), abs(xz.y)) > uExtent) { d.alive = 0.0; return; }
+  vec4 co = coastAt(xz);
+  if (h < (co.r > 0.5 ? 0.07 : 0.15) || max(abs(xz.x), abs(xz.y)) > uExtent) { d.alive = 0.0; return; }
   vec3 P = vec3(xz.x, h, xz.y);
   vec3 Nn = normalAt(xz);
   vec4 m = texture(tLand, landUv(xz));
@@ -32,7 +33,20 @@ void makeDab(inout Dab d) {
   float x = sunOn(P + vec3(k.x - 0.5, 0.0, k.y - 0.5) * 1.6 * uCell0 * lod, Nn);
   vec3 contour = normalize(cross(Nn, vec3(0.0, 1.0, 0.0)) + vec3(1e-4, 0.0, 0.0));
   vec3 c1, c2;
-  if (m.r + (q.x - 0.5) * 0.35 > 0.5) {
+  vec3 own;
+  bool sandy = co.r + (q.x - 0.5) * 0.3 > 0.5 && m.r + (q.x - 0.5) * 0.35 < 0.5 + 0.4 * co.r;
+  if (sandy) {
+    // sand: laid along the shore in long flat drags, wet and darker at the water's edge
+    float wet = m.a;
+    c1 = sandPaint(x, q.y, wet);
+    c2 = sandPaint(x + 0.14, q.w, wet) * 1.08;
+    if (co.a + (q.z - 0.5) * 0.3 > 0.5) { c1 = lanePaint(x, q.y); c2 = c1 * 1.1; }
+    own = vec3(0.98, 0.84, 0.64);
+    float wa = (texture(tNoise, xz / 37.0).a - 0.5) * 1.2 + (q.y - 0.5) * 0.8;
+    d.dir = normalize(vec3(sin(wa), 0.0, cos(wa)));
+    d.size = uCell0 * vec2(1.0 + 1.4 * k.z * k.z, 1.0) * lod;
+    d.size.y = d.size.x * (k.w < 0.4 ? 2.6 + 1.6 * r.w : 1.1 + 0.8 * r.w);
+  } else if (m.r + (q.x - 0.5) * 0.35 > 0.5) {
     d.alive *= 1.0 - smoothstep(70.0, 130.0, dist);
     d.alive *= smoothstep(0.1, 0.3, abs(dot(Nn, normalize(cameraPosition - P))));
     float kind = texture(tNoise, xz / 41.0).g;
@@ -40,11 +54,25 @@ void makeDab(inout Dab d) {
     c1 = rockPaint(xr, q.y, kind, Nn);
     c2 = rockPaint(xr + 0.12, q.w, kind + 0.2, Nn) * 1.15;
     c1 = mix(c1, wetPaint(x, q.y), m.a * 0.8);
+    own = c1 * 1.5 + 0.06;
     // down the face, or along its beds now and then
     d.dir = normalize(mix(cross(Nn, contour), contour, step(0.65, r.z)) + (q.xyz - 0.5) * 0.35);
     d.size = uCell0 * vec2(1.3 + 2.2 * k.z * k.z, 1.0) * lod;
     d.size.y = d.size.x * (k.w < 0.3 ? 2.2 + 1.2 * r.w : 0.9 + 0.9 * r.w);
     d.turnabout = -1.0;
+    // hung from where it is pinned, down the face, so the cliff's top edge stays the top of the paint
+    P += cross(contour, Nn) * -d.size.y * 0.45 * smoothstep(0.75, 0.4, Nn.y);
+    // the low bluffs over the beach are pale sandstone laid in beds
+    if (xz.x - edgeX(xz.y) > 60.0) {
+      c1 = bluffPaint(xr * 0.7, q.y);
+      c2 = bluffPaint(xr * 0.7 + 0.08, q.w) * 1.05;
+      d.dir = normalize(contour + (q.xyz - 0.5) * 0.15);
+      d.size *= 0.5;
+    }
+    // where the rock turns over an edge, a flat stroke would stand out past it into the sky: keep it small there
+    vec3 ra = d.dir * d.size.y * 0.5;
+    float bend = min(dot(Nn, normalAt(xz + ra.xz)), dot(Nn, normalAt(xz - ra.xz)));
+    d.size *= mix(0.3, 1.0, smoothstep(0.75, 0.96, bend));
   } else {
     float kind = texture(tNoise, xz / 29.0).r + (q.z - 0.5) * 0.25;
     c1 = turfPaint(x, q.y, kind);
@@ -52,6 +80,9 @@ void makeDab(inout Dab d) {
     // the worn way along the top: bare earth, warm in the sun
     float way = smoothstep(1.6, 0.6, abs(xz.x - wayX(xz.y)));
     if (way + (q.y - 0.5) * 0.5 > 0.5) { c1 = paint3(vec3(0.86, 0.66, 0.48), vec3(0.55, 0.42, 0.4), vec3(0.24, 0.2, 0.3), x, q.y); c2 = c1 * 1.1; }
+    // the lanes down to the beach: trodden sand
+    if (co.a + (q.z - 0.5) * 0.4 > 0.5) { c1 = lanePaint(x, q.y); c2 = c1 * 1.1; way = 1.0; }
+    own = c1 * 1.45 + 0.06;
     // flowers lying in the turf, in drifts
     float drift = texture(tNoise, xz / 17.0 + 0.4).a;
     bool bloom = q.w > 1.1 - 0.3 * smoothstep(0.5, 0.75, drift) && way < 0.5;
@@ -65,6 +96,8 @@ void makeDab(inout Dab d) {
   }
   if (d.cell < 0.0) { float mm = floor(fract(k.w * 7.3) * 4.0); d.cell = mm < 3.0 ? ${KNIFE}.0 + mm : ${KNIFE + 5}.0; }
   d.pos = P;
+  c1 = lampOn(c1, own, P);
+  c2 = lampOn(c2, own * 1.08, P);
   d.c1 = hazed(jitter(c1, r.wzy, 0.32), P);
   d.c2 = hazed(jitter(c2, q.wzy, 0.32), P);
   d.seed = dot(cell, vec2(1.0, 57.0)) + sub * 0.37;
@@ -90,7 +123,8 @@ void makeDab(inout Dab d) {
     d.alive = smoothstep(10.0, 34.0, dist);
     if (d.alive <= 0.0) return;
     float kind = texture(tNoise, P.xz / 41.0).g + (q.x - 0.5) * 0.2;
-    c = rockPaint(rockOn(P, Nn), q.y, kind, Nn);
+    c = P.x - (22.0 * sin(P.z / 120.0) + 9.0 * sin(P.z / 41.0 + 1.3)) > 60.0 ? bluffPaint(rockOn(P, Nn) * 0.7, q.y) : rockPaint(rockOn(P, Nn), q.y, kind, Nn);
+    c = lampOn(c, c * 1.5 + 0.06, P);
     // most cuts run down the cliff; some lie along its beds
     bool bed = r.z > 0.75;
     d.dir = normalize((bed ? contour : down) + (q.xyz - 0.5) * 0.4);
@@ -108,13 +142,22 @@ void makeDab(inout Dab d) {
     d.alive = smoothstep(110.0, 220.0, dist);
     if (d.alive <= 0.0) return;
     float kind = texture(tNoise, P.xz / 29.0).r + (q.z - 0.5) * 0.25;
-    c = q.w > 0.86 ? flowerPaint(x, q.x) : turfPaint(x, q.y, kind);
+    vec4 co = coastAt(P.xz);
+    c = co.r > 0.5 ? sandPaint(x, q.y, 0.0) : co.a > 0.5 ? lanePaint(x, q.y) : q.w > 0.86 ? flowerPaint(x, q.x) : turfPaint(x, q.y, kind);
+    c = lampOn(c, c * 1.5 + 0.06, P);
     d.dir = normalize(contour + (q.yzw - 0.5) * 0.4);
     d.size = vec2(3.2, 6.0) * (0.7 + 0.8 * r.y) * aData.w;
   }
   d.size *= mix(0.45, 1.0, smoothstep(0.05, 0.5, abs(dot(Nn, normalize(cameraPosition - P)))));
+  if (aData.y > 0.5) {
+    vec3 ra = d.dir * d.size.y * 0.5;
+    float bend = min(dot(Nn, normalAt(P.xz + ra.xz)), dot(Nn, normalAt(P.xz - ra.xz)));
+    d.size *= mix(0.3, 1.0, smoothstep(0.75, 0.96, bend));
+  }
   c = jitter(c, r.wzy, 0.3);
   d.pos = P + Nn * 0.12;
+  // a cut on a face hangs down from where it is pinned, so none stands up past the cliff's top against the sky
+  if (aData.y > 0.5) d.pos += down * d.size.y * 0.45 * smoothstep(0.75, 0.4, Nn.y);
   d.c1 = hazed(c, P);
   d.c2 = hazed(c * 1.18 + vec3(0.02, 0.01, 0.0), P);
   d.seed = aData.x;
@@ -145,7 +188,7 @@ void makeDab(inout Dab d) {
     vec3 toEye = normalize(cameraPosition - P);
     vec3 side = normalize(cross(vec3(0.0, 1.0, 0.0), toEye) + vec3(1e-4, 0.0, 0.0));
     vec3 upv = normalize(cross(toEye, side));
-    vec3 head = P + vec3(0.0, 0.22 + 0.26 * h.w, 0.0) + lean * 0.5;
+    vec3 head = P + vec3(0.0, 0.14 + 0.18 * h.w, 0.0) + lean * 0.5;
     vec3 c = flowerPaint(x, h.z);
     if (aK.x < 1.5) {
       float a = aK.z / aK.w * TAU + h.x * TAU + (r.x - 0.5) * 1.1;
@@ -169,12 +212,12 @@ void makeDab(inout Dab d) {
     d.c1 = hazed(c, P);
     d.c2 = hazed(mix(c, vec3(1.0, 0.84, 0.66), 0.14), P);
   } else {
-    vec3 c = paint3(vec3(0.42, 0.5, 0.3), vec3(0.22, 0.32, 0.22), vec3(0.12, 0.17, 0.2), x, r.z);
+    vec3 c = paint3(vec3(0.48, 0.5, 0.3), vec3(0.28, 0.34, 0.24), vec3(0.16, 0.2, 0.26), x, r.z);
     d.dir = normalize(vec3(0.0, 1.0, 0.0) + lean + vec3(r.z - 0.5, 0.0, r.w - 0.5) * 0.8);
     d.base = 1.0;
     d.pos = P - vec3(0.0, 0.05, 0.0);
-    d.size = vec2(0.2 + 0.14 * r.x, 1.0);
-    d.size.y = d.size.x * (1.5 + 0.6 * r.w);
+    d.size = vec2(0.22 + 0.14 * r.x, 1.0);
+    d.size.y = d.size.x * (1.3 + 0.5 * r.w);
     d.c1 = hazed(jitter(c, r.wzy, 0.25), P);
     d.c2 = hazed(c * 1.25 + vec3(0.02, 0.03, 0.0), P);
     d.spin = (r.x - 0.5) * 1.6;
@@ -204,7 +247,9 @@ export function createGround(shared) {
     const stone = isRock > 0.5;
     if (rand() > (stone ? 0.6 : 0.09)) continue;
     normalAt(x, z, n);
-    list.push([x, h, z, n.x, n.y, n.z, rand() * 1000, stone ? 1 : 0, cliff, stone ? 1.1 + 0.4 * cliff : 1]);
+    // the low sandstone bluffs over the beach are cut with a smaller knife than the sea cliffs
+    const east = x - edgeX(z) > 60;
+    list.push([x, h, z, n.x, n.y, n.z, rand() * 1000, stone ? 1 : 0, cliff, stone ? (east ? 0.55 : 1.1 + 0.4 * cliff) : 1]);
     if (stone) rock++; else turf++;
   }
   // laid in a fixed order, west to east: looking from the clifftop out to sea, the near cliff covers the stacks
@@ -226,7 +271,7 @@ export function createGround(shared) {
     const x = edgeX(z) + off;
     if (Math.abs(x - wayX(z)) < 1.4) continue;
     const h = heightAt(x, z);
-    if (h < 2 || landAt(x, z)[0] > 0.3) continue;
+    if (h < 2 || landAt(x, z)[0] > 0.3 || coastAt(x, z)[3] > 0.3) continue;
     const drift = 0.5 + 0.5 * noise(x / 11 + 2, z / 11 - 7);
     if (rand() > 0.01 + 0.99 * Math.max(0, drift * 1.8 - 0.9) ** 2) continue;
     clumps++;
@@ -236,8 +281,8 @@ export function createGround(shared) {
       for (let k = 0; k < n; k++) part(cx, cy, cz, 1, head, k, n);
       part(cx, cy, cz, 2, head, n, n);
     }
-    for (let k = 0, leaves = 2 + Math.floor(rand() * 2); k < leaves; k++) {
-      const lx = x + (rand() - 0.5) * 1.4, lz = z + (rand() - 0.5) * 1.4;
+    for (let k = 0, leaves = 4 + Math.floor(rand() * 3); k < leaves; k++) {
+      const lx = x + (rand() - 0.5) * 1.1, lz = z + (rand() - 0.5) * 1.1;
       part(lx, heightAt(lx, lz), lz, 0, 0, 0, 1);
     }
   }

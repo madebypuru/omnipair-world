@@ -11,26 +11,35 @@ const SKY = 'var(--leverage)', AQUA = 'var(--lending)', DAWN = 'var(--trade)', C
 
 // w: one frame of the walk (see track below). p: the goal's progress so far.
 export const GOALS = [
+  { id: 'first-pair', title: 'The pair of everything', description: 'Bank your first pair in the Pool.', goal: 1, accent: CREAM, test: (w, p) => p + w.events.pairs },
+  { id: 'pairs-10', title: 'Ten in the Pool', description: 'Deliver 10 pairs.', goal: 10, accent: SKY, test: (w, p) => p + w.events.pairs },
+  { id: 'pairs-50', title: 'Deep liquidity', description: 'Deliver 50 pairs.', goal: 50, accent: AQUA, test: (w, p) => p + w.events.pairs },
+  { id: 'pairs-200', title: 'One pool for everything', description: 'Deliver 200 pairs.', goal: 200, accent: DAWN, test: (w, p) => p + w.events.pairs },
+  { id: 'products', title: 'All three', description: 'Ride through the Leverage, Lending and Trade rings.', goal: 3, accent: AQUA, test: (w, p) => p + w.events.productNew },
+  { id: 'leveraged', title: 'On margin', description: 'Bank a deposit under Leverage.', goal: 1, accent: SKY, test: (w) => +!!w.events.leveraged },
+  { id: 'clean-flip', title: 'Stuck it', description: 'Land a flip clean.', goal: 1, accent: DAWN, test: (w) => +!!w.events.cleanFlip },
+  { id: 'combo', title: 'Five times over', description: 'Build a combo to x5.', goal: 1, accent: SKY, test: (w) => +!!w.events.combo5 },
+  { id: 'air-token', title: 'Out of thin air', description: 'Pick up a token in mid air.', goal: 1, accent: AQUA, test: (w) => +!!w.events.airToken },
+  { id: 'finish', title: 'Banked', description: 'Finish a run at the Pool (Enter).', goal: 1, accent: CREAM, test: (w) => +!!w.events.finish },
   { id: 'leave', title: 'Off you go', description: 'Walk away from where you woke.', goal: 1, accent: CREAM, test: (w) => +(w.fromStart > 40) },
   { id: 'first-stone', title: 'Reading the signs', description: 'Read one of the product stones.', goal: 1, accent: SKY, test: (w) => +(w.found > 0) },
   { id: 'stones', title: 'Full set', description: 'Read Leverage, Lending and Trade.', goal: 3, accent: AQUA, test: (w) => w.found },
-  { id: 'lit', title: 'Light it up', description: 'Light the great mark on the point.', goal: 1, accent: DAWN, test: (w) => +(w.lit > 0.9) },
-  { id: 'great', title: 'The pair of everything', description: 'Read the great mark once it is lit.', goal: 1, accent: CREAM, test: (w) => +w.greatOpen },
   { id: 'point', title: "Land's end", description: 'Reach the point at the north end.', goal: 1, accent: SKY, test: (w) => +(w.toPoint < 30) },
   { id: 'arch', title: 'Mind the gap', description: 'Stand at the cliff edge across from the sea arch.', goal: 1, accent: DAWN, test: (w) => +(w.toArch < w.archNear && w.y > 1) },
   { id: 'map', title: 'Lay of the land', description: 'Open the map.', goal: 1, accent: AQUA, test: (w) => +w.events.map },
   { id: 'travel', title: 'Shortcut', description: 'Travel somewhere from the map.', goal: 1, accent: SKY, test: (w) => +w.events.travel },
   { id: 'above', title: "Bird's eye", description: 'Pull the view far back and look straight down.', goal: 1, accent: CREAM, test: (w) => +(w.pitch > 1.3 && w.reach > 45) },
   { id: 'first', title: 'In his shoes', description: 'See it through his eyes (V).', goal: 1, accent: AQUA, test: (w) => +w.first },
-  { id: 'jumps', title: 'Spring in the step', description: 'Jump ten times.', goal: 10, accent: DAWN, test: (w, p) => p + w.events.jump },
-  { id: 'walk', title: 'The long way round', description: 'Walk a kilometre.', goal: 1000, unit: 'm', accent: SKY, test: (w, p) => p + w.walked },
+  { id: 'jumps', title: 'Spring in the step', description: 'Jump or leap ten times.', goal: 10, accent: DAWN, test: (w, p) => p + w.events.jump },
+  { id: 'walk', title: 'The long way round', description: 'Cover a kilometre, riding or on foot.', goal: 1000, unit: 'm', accent: SKY, test: (w, p) => p + w.walked },
   { id: 'sea', title: 'Under the sea', description: 'Fall in the sea and wash up again.', goal: 1, accent: AQUA, test: (w) => +w.events.sea },
   { id: 'sunset', title: 'Golden hour', description: 'Stand still for a minute and watch the sun.', goal: 60, unit: 's', accent: DAWN, test: (w, p) => Math.max(p, w.still) },
 ];
 
 /**
  * The goals' bookkeeping, apart from any page: feed it one frame of the walk with update(); note(name) marks an event
- * (map, travel, jump, sea) for the next frame. onEarn(goal) is told when one is earned.
+ * (map, travel, jump, sea, and the game's: pairs, productNew, leveraged, cleanFlip, combo5, airToken, finish) for the
+ * next frame. onEarn(goal) is told when one is earned.
  */
 export function createGoals({ remember = true, onEarn } = {}) {
   const progress = Object.fromEntries(GOALS.map((g) => [g.id, 0]));
@@ -42,13 +51,13 @@ export function createGoals({ remember = true, onEarn } = {}) {
     dirty = false; sinceSave = 0;
     if (remember) try { localStorage.setItem(KEY, JSON.stringify({ progress })); } catch { /* storage off */ }
   };
-  const events = { map: 0, travel: 0, jump: 0, sea: 0 };
+  const events = { map: 0, travel: 0, jump: 0, sea: 0, pairs: 0, productNew: 0, leveraged: 0, cleanFlip: 0, combo5: 0, airToken: 0, finish: 0 };
   const w = { events, walked: 0, still: 0 };
   let last = null;
 
   return {
     progress,
-    note(name) { events[name] = (events[name] ?? 0) + 1; },
+    note(name, n = 1) { events[name] = (events[name] ?? 0) + n; },
     /**
      * f: { dt, x, y, z, moving, found, lit, greatOpen, fromStart, toPoint, toArch, archNear, pitch, reach, first }
      */

@@ -10,7 +10,8 @@ import { dabMaterial, dabGeometry, dabMesh } from '../oilpaint/dabs.js';
 import { KNIFE } from '../oilpaint/brush.js';
 import { noise, rng } from '../world/noise.js';
 import { COAST } from './paint.js';
-import { heightAt, shoreAt, EXTENT, SHORE_MAX } from './land.js';
+import { heightAt, shoreAt, coastAt, EXTENT, SHORE_MAX } from './land.js';
+import { LAMPS } from './paint.js';
 
 const WATER = /* glsl */ `
 uniform sampler2D tShore;
@@ -43,6 +44,41 @@ vec3 waterPaint(vec3 P, vec3 wobble, float shallow, float pick) {
   float graze = pow(1.0 - clamp(-v.y, 0.0, 1.0), 6.0);
   vec3 c = mix(body, sky, 0.04 + 0.2 * graze);
   return mix(c, vec3(1.0, 0.78, 0.46), road * 0.9);
+}
+// Calm water a hand deep: inside the lagoon and the tide pools.
+float calmAt(vec2 xz) { return max(abs(xz.x), abs(xz.y)) < uExtent ? coastAt(xz).b : 0.0; }
+// The lagoon: a mirror. Looking down into it near the eye the sand shows through, pale gold where it is a hand deep
+// and turquoise where it is deeper; farther off it gives back the sky and the cloud banks. ripple tips the mirror.
+vec3 lagoonPaint(vec3 P, vec2 ripple, float pick) {
+  vec3 v = normalize(P - cameraPosition);
+  vec3 r = normalize(vec3(v.x + ripple.x, max(-v.y, 0.002), v.z + ripple.y));
+  vec3 sky = duskSky(r);
+  float depth = clamp(seaDepth(P.xz), 0.0, 0.8);
+  float sun = woodSunAt(P + vec3(0.0, 0.2, 0.0));
+  vec3 sand = mix(pick < 0.5 ? vec3(0.96, 0.82, 0.6) : vec3(0.98, 0.72, 0.52), vec3(0.6, 0.62, 0.78), 0.45 * (1.0 - sun));
+  vec3 turq = mix(mix(vec3(0.3, 0.8, 0.8), vec3(0.18, 0.62, 0.74), pick), vec3(0.22, 0.52, 0.72), 0.35 * (1.0 - sun));
+  vec3 under = mix(sand, turq, 0.35 + 0.65 * smoothstep(0.0, 0.35, depth));
+  float fres = 0.3 + 0.7 * pow(1.0 - clamp(-v.y, 0.0, 1.0), 3.0);
+  vec3 c = mix(under, sky * 0.97, fres);
+  // each lamp, given back as a short broken column on the water under it, between it and the eye
+  for (int i = 0; i < ${LAMPS}; i++) {
+    vec4 L = uLamps[i];
+    if (L.w <= 0.0) continue;
+    vec2 cl = L.xz - cameraPosition.xz;
+    float D = length(cl);
+    if (D < 1.0 || D > 400.0) continue;
+    vec2 u = cl / D, cp = P.xz - cameraPosition.xz;
+    float along = dot(cp, u) / D;
+    float side = abs(cp.x * u.y - cp.y * u.x) / max(length(cp), 1.0);
+    float spec = cameraPosition.y / (cameraPosition.y + L.y);
+    // short: it reaches from the mirrored flame a little way toward the eye, and breaks up in the ripple
+    float reach = 0.04 + 0.3 * spec * (1.0 - spec);
+    float col = exp(-pow(side / (0.003 + 0.25 / D), 2.0)) * smoothstep(spec - reach, spec - reach * 0.4, along) * smoothstep(spec + reach * 0.5, spec, along);
+    col *= step(0.3, fract(sin(dot(floor(P.xz * 1.7), vec2(12.9898, 78.233))) * 43758.5453));
+    c = mix(c, vec3(1.0, 0.72, 0.36) * (0.95 + 0.3 * L.w), clamp(col * L.w * 1.6, 0.0, 0.92));
+  }
+  // and the lamps' pools lie warm on the water near them
+  return mix(c, c * vec3(1.15, 0.9, 0.62) + vec3(0.14, 0.07, 0.0), clamp(lampGlow(P) * 1.1, 0.0, 1.0) * 0.6);
 }
 `;
 
@@ -102,7 +138,7 @@ const SURF_BODY = /* glsl */ `
     d.height = 0.35 + 0.3 * F + 0.1 * r.z;
   }`;
 
-const RING = { r: 1900, top: 160, seed: 5.3, open: [-1.9, 0.5, 1.4], count: 30000 };
+const RING = { r: 1900, top: 60, seed: 5.3, open: [-1.9, 0.5, 1.4], count: 30000 };
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 function crest(az, broad = false) {
   const o = RING, c = Math.cos(az), s = Math.sin(az);
@@ -136,7 +172,11 @@ export function createSea(shared) {
       ${WATER}
       in vec3 vWorld;
       layout(location = 0) out vec4 outC;
-      void main() { vec3 c = waterPaint(vWorld, vec3(0.0), ${depth ? 'shallowAt(vWorld.xz, seaDepth(vWorld.xz))' : '0.0'}, 0.3) * 0.88; outC = vec4(mix(c, hazed(c, vWorld), 0.4), 1.0); }`,
+      void main() {
+        vec3 c = waterPaint(vWorld, vec3(0.0), ${depth ? 'shallowAt(vWorld.xz, seaDepth(vWorld.xz))' : '0.0'}, 0.3) * 0.88;
+        ${depth ? 'float calm = calmAt(vWorld.xz); if (calm > 0.01) c = mix(c, lagoonPaint(vWorld, vec2(0.0), 0.3) * 0.94, smoothstep(0.2, 0.7, calm));' : ''}
+        outC = vec4(mix(c, hazed(c, vWorld), 0.4), 1.0);
+      }`,
   });
   // one stroke of open water
   const stroke = (near) => /* glsl */ `
@@ -144,7 +184,7 @@ export function createSea(shared) {
       vec4 r = hash4(aW.w);
       vec3 P = aW.xyz;
       float depth = seaDepth(P.xz);
-      if (depth < 0.15) { d.alive = 0.0; return; }
+      if (depth < 0.15${''} || calmAt(P.xz) > 0.5) { d.alive = 0.0; return; }
       vec2 q = normalize(P.xz - cameraPosition.xz);
       vec3 along = vec3(-q.y, 0.0, q.x);
       float swell = swellAt(P.xz, r.z);
@@ -291,13 +331,60 @@ export function createSea(shared) {
     }), -5));
   }
 
+  // --- the lagoon: long strokes lying on the water and pointing at the eye, so the sky they give back is drawn down
+  // the canvas in vertical smears, as the brand's lagoon is painted ---
+  {
+    const list = [];
+    for (let z = -EXTENT; z < EXTENT; z += 1.1) {
+      for (let x = 100; x < EXTENT; x += 1.1) {
+        const px = x + rand() * 1.1, pz = z + rand() * 1.1;
+        if (coastAt(px, pz)[2] < 0.3 || heightAt(px, pz) > -0.02) continue;
+        list.push(px, 0, pz, rand() * 1000);
+      }
+    }
+    group.add(dabMesh(dabGeometry(list.length / 4, { aW: [new Float32Array(list), 4] }), dabMaterial(shared, {
+      head: COAST + WATER + /* glsl */ `in vec4 aW;`,
+      body: /* glsl */ `
+        void makeDab(inout Dab d) {
+          vec4 r = hash4(aW.w);
+          vec4 k = hash4(aW.w * 2.3 + 0.7);
+          vec3 P = vec3(aW.x, 0.0, aW.z);
+          if (calmAt(P.xz) < 0.3) { d.alive = 0.0; return; }
+          vec3 toEye = cameraPosition - P;
+          float dist = length(toEye);
+          float graze = max(toEye.y / dist, 0.02);
+          // the faintest ripple: a slow tilt of the mirror, more across than along
+          vec2 w = (texture(tNoise, P.xz / 23.0 + uTime * vec2(0.004, 0.0025)).rg - 0.5);
+          vec2 ripple = vec2(w.x * 0.012, w.y * 0.012) + (r.xy - 0.5) * vec2(0.004, 0.004);
+          // smeared down the canvas: the reflection a little lower or higher along the stroke
+          vec3 c = lagoonPaint(P, ripple, fract(r.z * 5.1));
+          vec2 q = normalize(P.xz - cameraPosition.xz + 1e-4);
+          d.dir = vec3(q.x, 0.0, q.y);
+          // across: a little of the canvas; along: long enough to stand as a smear however low the eye
+          float across = (0.35 + 0.5 * r.y) * (1.0 + dist * 0.012);
+          float smear = 0.012 + 0.03 * k.y * k.y; // radians of the canvas
+          d.size = vec2(across, clamp(smear * dist / graze, across * 1.5, 40.0));
+          d.pos = P;
+          d.c1 = mix(jitter(c, r.yzw, 0.06), hazed(c, P), 0.35);
+          d.c2 = mix(c * 1.04 + vec3(0.01), hazed(c, P), 0.35);
+          d.seed = aW.w;
+          d.lie = 1.0;
+          d.nrm = vec3(0.0, 1.0, 0.0);
+          d.height = 0.01 + 0.04 * r.w;
+          d.cell = k.z < 0.5 ? ${KNIFE}.0 : k.z < 0.8 ? ${KNIFE + 1}.0 : ${KNIFE + 5}.0;
+        }`,
+      uniforms: { uImpasto: { value: 0.35 } },
+      minPx: [3, 6], maxPx: [600, 2400], cells: [KNIFE, 3],
+    }), -5.5));
+  }
+
   // --- the surf: a band of foam along every shore, thick at the rock and thinning seaward ---
   {
     const list = [];
     for (let j = -EXTENT; j < EXTENT; j++) {
       for (let i = -EXTENT; i < EXTENT; i++) {
         const s = shoreAt(i + 0.5, j + 0.5);
-        if (s <= 0.05 || s > SURF.reach) continue;
+        if (s <= 0.05 || s > SURF.reach || coastAt(i + 0.5, j + 0.5)[2] > 0.2) continue;
         // packed at the rock, fewer out where only the breaking crests reach
         const want = s < 4 ? 1.6 : 1.2 * Math.exp(-(s - 4) / 6);
         for (let n = want + rand(); n >= 1; n--) list.push(i + rand(), 0, j + rand(), rand() * 1000);
