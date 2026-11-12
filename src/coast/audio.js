@@ -151,6 +151,17 @@ export function buildEngine(ac) {
     send(pp, 1, wet);
     count(5);
   }
+  /** A wooden note for the dark token: a sine with a quick, hollow fourth partial and a short tail. */
+  function wood(t, f, { level = 0.12, p = 0 } = {}) {
+    const out = pan(p), g = gain(0, out), a = ac.createOscillator(), c = ac.createOscillator();
+    a.type = 'sine'; c.type = 'sine'; a.frequency.value = f; c.frequency.value = f * 3.98;
+    const cg = gain(0.35, g); a.connect(g); c.connect(cg);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(level, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    cg.gain.setValueAtTime(0.35, t); cg.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    a.start(t); c.start(t); a.stop(t + 0.6); c.stop(t + 0.6);
+    send(out, 1, 0.3);
+    count(6);
+  }
   function thump(t, { f = 90, to = 42, level = 0.5, dur = 0.35 } = {}) {
     const o = ac.createOscillator(); o.type = 'sine';
     o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(to, t + dur);
@@ -166,14 +177,16 @@ export function buildEngine(ac) {
     token(t, d = {}) {
       // a quick run of pickups climbs the scale; A and B sound a fifth apart
       run = t - run.at < 0.7 ? { at: t, n: Math.min(run.n + 1, 9) } : { at: t, n: 0 };
-      const semi = step(5 + run.n) + (d.kind === 'b' ? 7 : 0);
-      bell(t, hz(semi), { level: 0.09, decay: 0.9, wet: 0.35, p: d.kind === 'b' ? 0.15 : -0.15 });
+      if (d.kind === 'b') wood(t, hz(step(2 + run.n)), { level: 0.13, p: 0.15 });
+      else bell(t, hz(step(5 + run.n)), { level: 0.09, decay: 0.9, wet: 0.35, p: -0.15 });
     },
     pair(t) { bell(t, hz(12), { level: 0.07, decay: 2.2, wet: 0.7 }); bell(t + 0.09, hz(19), { level: 0.06, decay: 2.4, wet: 0.7 }); },
     product(t, d = {}) {
       const M = { leverage: [0, 7, 12, 19], lending: [16, 12, 9, 7], trade: [7, 4, 9, 12] }[d.key] ?? [0, 7];
-      M.forEach((s, i) => bell(t + i * 0.11, hz(s), { level: 0.08, decay: 1.6, wet: 0.6, p: (i % 2 ? 0.2 : -0.2) }));
-      hiss(t, { from: 3000, to: 9000, level: 0.04, dur: 0.6, type: 'highpass', wet: 0.6 });
+      M.forEach((s, i) => bell(t + i * 0.11, hz(s), { level: 0.08, decay: 1.6, wet: 0.6, p: d.key === 'trade' ? (i % 2 ? 0.5 : -0.5) : (i % 2 ? 0.2 : -0.2) }));
+      if (d.key === 'leverage') { hiss(t, { from: 300, to: 5000, q: 2, level: 0.09, attack: 0.5, dur: 0.75, wet: 0.5 }); thump(t + 0.45, { f: 70, to: 40, level: 0.3, dur: 0.5 }); }
+      else if (d.key === 'lending') hiss(t + 0.1, { from: 5000, to: 500, type: 'lowpass', q: 3, level: 0.07, attack: 0.05, dur: 1.1, wet: 0.7 });
+      else hiss(t, { from: 3000, to: 9000, level: 0.04, dur: 0.6, type: 'highpass', wet: 0.6 });
     },
     deposit(t, d = {}) {
       const n = Math.max(3, Math.min(16, 2 + (d.pairs ?? 1)));
@@ -189,6 +202,21 @@ export function buildEngine(ac) {
       const hard = d.clean === false;
       thump(t, { f: hard ? 75 : 95, to: hard ? 32 : 48, level: hard ? 0.55 : 0.32, dur: hard ? 0.5 : 0.3 });
       hiss(t, { from: 1800, to: 400, type: 'lowpass', q: 0.6, level: hard ? 0.22 : 0.12, attack: 0.004, dur: hard ? 0.7 : 0.4, wet: 0.2 });
+    },
+    refuse(t) { pluck(t, hz(-5), { level: 0.07, decay: 0.5, wet: 0.3, echoes: 0 }); pluck(t + 0.12, hz(-7), { level: 0.06, decay: 0.6, wet: 0.3, echoes: 0 }); },
+    boost(t) { hiss(t, { from: 250, to: 3200, q: 1.2, level: 0.14, attack: 0.25, dur: 0.7, wet: 0.25 }); thump(t, { f: 60, to: 48, level: 0.18, dur: 0.6 }); },
+    bump(t, d = {}) { const k = clamp01((d.speed ?? 4) / 10); thump(t, { f: 110, to: 55, level: 0.15 + 0.3 * k, dur: 0.22 }); hiss(t, { from: 1500, to: 300, type: 'lowpass', level: 0.06 + 0.1 * k, attack: 0.003, dur: 0.25, wet: 0.1, buf: brown }); },
+    mount(t) { thump(t, { f: 140, to: 90, level: 0.12, dur: 0.12 }); hiss(t, { from: 2500, to: 800, type: 'lowpass', level: 0.05, attack: 0.003, dur: 0.15, wet: 0.1 }); },
+    whistle(t) {
+      // two notes through the fingers, the second up a fourth
+      for (const [at, f0, f1] of [[0, 1480, 1560], [0.2, 1975, 2080]]) {
+        const o = ac.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(f0, t + at); o.frequency.linearRampToValueAtTime(f1, t + at + 0.16);
+        const g = gain(0); o.connect(g);
+        g.gain.setValueAtTime(0, t + at); g.gain.linearRampToValueAtTime(0.05, t + at + 0.03); g.gain.setValueAtTime(0.05, t + at + 0.13); g.gain.linearRampToValueAtTime(0, t + at + 0.18);
+        send(g, 1, 0.5); o.start(t + at); o.stop(t + at + 0.2); count(4);
+      }
+      hiss(t, { from: 1700, to: 1900, q: 6, level: 0.015, dur: 0.4, wet: 0.3 });
     },
     crash(t) { FX.land(t, { clean: false }); hiss(t + 0.05, { from: 900, to: 200, type: 'lowpass', level: 0.18, dur: 1.1, wet: 0.3, buf: brown }); },
     splash(t) {
@@ -226,6 +254,9 @@ export function buildEngine(ac) {
   const water = layer(white, 'bandpass', 1400, 0.9);
   const spray = layer(white, 'highpass', 3500, 0.7);
   const glide = layer(white, 'bandpass', 900, 0.5);
+  // the board on land: a low rumble (turf, rock) and a dry grit (sand)
+  const roll = layer(brown, 'lowpass', 300, 0.7);
+  const grit = layer(white, 'bandpass', 2600, 0.8);
   const lagoon = { pp: pan(0) }; send(lagoon.pp, 1, 0.3);
 
   const set = (param, v, k = 0.25) => param.setTargetAtTime(v, ac.currentTime, k);
@@ -290,7 +321,7 @@ export function buildEngine(ac) {
     play(name, data, t = ac.currentTime) { FX[name]?.(t + 0.01, data); return !!FX[name]; },
     /**
      * The scene as it sounds now, each 0..1: speed (score intensity), sea and lagoon (how near), their pans (-1..1),
-     * wind, water (board on water), spray (carving), glide (air).
+     * wind, water (board on water), spray (carving), glide (air), roll (board on turf or rock), grit (board on sand).
      */
     scene(s) {
       intensity = clamp01(s.speed ?? 0);
@@ -306,6 +337,9 @@ export function buildEngine(ac) {
       set(water.flt.frequency, 700 + 1600 * clamp01(s.water ?? 0), 0.15);
       set(spray.g.gain, 0.08 * clamp01(s.spray ?? 0), 0.06);
       set(glide.g.gain, 0.09 * clamp01(s.glide ?? 0), 0.2);
+      set(roll.g.gain, 0.34 * clamp01(s.roll ?? 0), 0.08);
+      set(roll.flt.frequency, 160 + 500 * clamp01(s.roll ?? 0), 0.15);
+      set(grit.g.gain, 0.05 * clamp01(s.grit ?? 0), 0.08);
       set(glide.flt.frequency, 500 + 900 * clamp01(s.glide ?? 0), 0.3);
     },
     /** volumes 0..1: music, effects; duck: the score's share while a card is up. */
@@ -383,9 +417,13 @@ export function createAudio(ctx) {
   ctx.on?.('token:collect', (d) => play('token', d));
   ctx.on?.('pool:deposit', (d) => play('deposit', d));
   ctx.on?.('product:use', (d) => play('product', d));
+  ctx.on?.('product:refuse', (d) => play('refuse', d));
+  ctx.on?.('ride:boost', (d) => play('boost', d));
+  ctx.on?.('ride:bump', (d) => play('bump', d));
+  ctx.on?.('ride:whistle', (d) => play('whistle', d));
   ctx.on?.('run:finish', (d) => { play('finish', d); ducked = true; levels(); });
   ctx.on?.('title:enter', () => { ducked = false; levels(); });
-  ctx.on?.('ride:mount', () => { ducked = false; levels(); });
+  ctx.on?.('ride:mount', (d) => { ducked = false; levels(); play('mount', d); });
   ctx.on?.('ride:leap', (d) => play('leap', d));
   ctx.on?.('ride:land', (d) => play('land', d));
   ctx.on?.('ride:crash', (d) => play('crash', d));
@@ -395,7 +433,7 @@ export function createAudio(ctx) {
 
   // where he is, heard: probes round him find the sea (west of the cliff's edge) and the lagoon (east of it)
   const fwd = { x: 0, z: 0 };
-  let probeClock = 0, lastPairs = 0, lastHeading = null, sceneNow = {};
+  let probeClock = 0, sceneClock = 0, turnSum = 0, turnTime = 0, lastPairs = 0, lastHeading = null, sceneNow = {};
   const DIRS = Array.from({ length: 8 }, (_, i) => [Math.cos((i * Math.PI) / 4), Math.sin((i * Math.PI) / 4)]);
   function listen(p) {
     const e = ctx.camera.matrixWorld.elements; // the eye's forward is -z
@@ -434,21 +472,29 @@ export function createAudio(ctx) {
         probeClock = 0.25;
         sceneNow = listen(p);
       }
-      const speed = ride.mounted ? ride.speed ?? 0 : ctx.player?.speed ?? 0;
-      let turn = 0;
       if (ride.heading != null) {
-        if (lastHeading != null) { let d = ride.heading - lastHeading; d = Math.atan2(Math.sin(d), Math.cos(d)); turn = Math.abs(d) / Math.max(dt, 1e-3); }
+        if (lastHeading != null) { let d = ride.heading - lastHeading; d = Math.atan2(Math.sin(d), Math.cos(d)); turnSum += Math.abs(d); turnTime += dt; }
         lastHeading = ride.heading;
       }
-      const onWater = ride.mounted && !ride.airborne && p && ctx.heightAt(p.x, p.z) < 0.3;
-      eng.scene({
-        ...sceneNow,
-        speed: clamp01(speed / 18),
-        wind: clamp01((sceneNow.height ?? 0) / 60 + speed / 22),
-        water: onWater ? clamp01(speed / 14) : 0,
-        spray: onWater ? clamp01((turn - 0.4) * speed / 12) : 0,
-        glide: ride.airborne ? clamp01(0.3 + speed / 20) : 0,
-      });
+      // the mix follows the ride twenty times a second: enough for the ear, and few automation events
+      if ((sceneClock -= dt) <= 0) {
+        sceneClock = 0.05;
+        const turn = turnTime > 0 ? turnSum / turnTime : 0;
+        turnSum = turnTime = 0;
+        const speed = ride.mounted ? ride.speed ?? 0 : ctx.player?.speed ?? 0;
+        const on = ride.mounted && !ride.airborne && ride.mode !== 'crash', surface = ride.surface;
+        const onWater = on && surface === 'water', onLand = on && !onWater;
+        eng.scene({
+          ...sceneNow,
+          speed: clamp01(speed / 18),
+          wind: clamp01((sceneNow.height ?? 0) / 60 + speed / 22),
+          water: onWater ? clamp01(speed / 14) : 0,
+          spray: onWater ? clamp01((turn - 0.4) * speed / 12) : 0,
+          glide: ride.airborne ? clamp01(0.3 + speed / 20) : 0,
+          roll: onLand ? clamp01(speed / (surface === 'sand' ? 16 : 11)) : 0,
+          grit: onLand && surface === 'sand' ? clamp01(speed / 13 + turn * 0.2) : 0,
+        });
+      }
       if (game) {
         if (game.pairs > lastPairs) play('pair');
         lastPairs = game.pairs ?? 0;
@@ -459,10 +505,10 @@ export function createAudio(ctx) {
       context: eng?.ac.state ?? 'none', time: eng ? +eng.ac.currentTime.toFixed(2) : 0, made: eng?.made ?? 0,
     }),
     /** Renders `seconds` of the whole mix offline (score, ambience at the given scene, effects on a timetable): a Float32Array per channel. */
-    async render(seconds = 10, scene = { speed: 0.5, sea: 0.7, seaPan: -0.5, lagoon: 0.4, lagoonPan: 0.5, wind: 0.4, water: 0.5 }, fx = [[1, 'token', { kind: 'a' }], [1.3, 'token', { kind: 'b' }], [1.6, 'token', { kind: 'a' }], [2, 'pair'], [3, 'leap'], [3.8, 'land', { clean: true }], [4.5, 'product', { key: 'trade' }], [5.5, 'deposit', { pairs: 6 }], [7, 'land', { clean: false }], [7.5, 'splash'], [8.2, 'product', { key: 'leverage' }], [8.8, 'finish'], [9.3, 'click']]) {
+    async render(seconds = 10, scene = { speed: 0.5, sea: 0.7, seaPan: -0.5, lagoon: 0.4, lagoonPan: 0.5, wind: 0.4, water: 0.5, roll: 0.4 }, fx = [[0.5, 'mount'], [0.8, 'boost'], [2.4, 'bump', { speed: 8 }], [6.3, 'whistle'], [6.6, 'refuse'], [4, 'product', { key: 'lending' }], [9.6, 'token', { kind: 'b' }], [9.75, 'token', { kind: 'b' }], [1, 'token', { kind: 'a' }], [1.3, 'token', { kind: 'b' }], [1.6, 'token', { kind: 'a' }], [2, 'pair'], [3, 'leap'], [3.8, 'land', { clean: true }], [4.5, 'product', { key: 'trade' }], [5.5, 'deposit', { pairs: 6 }], [7, 'land', { clean: false }], [7.5, 'splash'], [8.2, 'product', { key: 'leverage' }], [8.8, 'finish'], [9.3, 'click']], vol = { music: v.music, effects: v.effects }) {
       const off = new OfflineAudioContext(2, Math.ceil(44100 * seconds), 44100);
       const e = buildEngine(off);
-      e.levels({ music: v.music, effects: v.effects }, 0.001);
+      e.levels(vol, 0.001);
       e.scene(scene);
       e.schedule(seconds, 0);
       for (const [t, name, data] of fx) e.play(name, data, t);

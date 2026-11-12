@@ -1,7 +1,9 @@
 // The game loop (BRIEF.md, The game): the run's rules live in game.js, the tokens in tokens.js, the glass in
 // playhud.js; this joins them to the world. Each frame it picks up the tokens he reaches, works the product ring he
 // rides through, banks his pairs when he rides into the Pool, and tells the rest of the game through ctx's events:
-//   emits    token:collect { kind }, product:use { key, ok, text }, pool:deposit { pairs, score, multiplier }, run:finish { score }
+//   emits    token:collect { kind }, product:use { key, text } (product:refuse { key, text } while cooling or not
+//            possible), pool:deposit { pairs, score, multiplier }, run:finish { score }
+//   ctx.game is a new object after every rule: read it each frame, do not keep it.
 //   listens  ride:land { airtime, flips, spins, clean }, ride:crash, ride:swim, ride:leap
 // What is kept between visits (personal best, lifetime totals, the lessons done) is in localStorage, and only off the
 // patch test and ?capture.
@@ -72,7 +74,7 @@ export function createPlay(ctx) {
       if (!life.has(key)) { saved = { ...(saved ?? {}), life: { ...(saved?.life ?? { score: 0, delivered: 0, runs: 0 }), used: [...life, key] } }; store(SAVE, saved); note('productNew'); }
     }
     hud?.flash(out.text, out.ok ? ACCENT[key] : CREAM);
-    ctx.emit('product:use', { key, ok: out.ok, text: out.text });
+    ctx.emit(out.ok ? 'product:use' : 'product:refuse', { key, text: out.text });
     return out;
   }
 
@@ -195,11 +197,17 @@ export function createPlay(ctx) {
     /** Whether tokens are picked up (off for a check that rides past them). */
     pickups(on) { pickups = on; },
     tokens: () => tokens.list.map((tk, i) => ({ ...tk, here: tokens.here(i, now()) })),
+    /** The update's own time per frame: cpu(true) starts counting afresh, cpu() reads { mean, p95, frames } in ms. */
+    cpu(reset) {
+      if (reset) { spent.length = 0; return null; }
+      const s = [...spent].sort((x, y) => x - y);
+      return { mean: s.reduce((a, b) => a + b, 0) / (s.length || 1), p95: s[Math.floor(s.length * 0.95)] ?? 0, frames: s.length };
+    },
   };
+  const spent = [];
   if (ctx.lab) ctx.lab.game = lab;
 
-  return {
-    update(dt) {
+  function update(dt) {
       const t = now();
       pos.copy(rider());
       const riding = !!ctx.ride?.mounted;
@@ -244,6 +252,13 @@ export function createPlay(ctx) {
         showCombo: airborne || (run.combo > 0 && (t - airEnd < 3 || t - lastLanding < 3)),
         minimap: { x: pos.x, z: pos.z, heading: heading(), near, gates: omni.gates, pool: omni.pool, picture: t - born > 1.5 ? ctx.map?.picture : null },
       });
+  }
+
+  return {
+    update(dt) {
+      const t0 = performance.now();
+      update(dt);
+      if (spent.length < 4096) spent.push(performance.now() - t0);
     },
     tokens,
     lab,

@@ -31,19 +31,20 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME, head
 let failures = 0;
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failures++; return ok; };
 
-/** Every piece of the title inside the window, and the plate clear of the frame. */
+/** Every piece of the title inside the window, and the words clear of the controls. */
 function layout() {
   const r = (s) => document.querySelector(s)?.getBoundingClientRect();
   const W = innerWidth, H = innerHeight, bad = [];
-  for (const s of ['#title .frame', '#title .plate', '#title .step', '#title .how']) {
+  for (const s of ['#title .lockup', '#title .head', '#title .step', '#title .how', '#title .keys-brief']) {
     const b = r(s);
     if (!b || b.width < 1) bad.push(`${s} missing`);
     else if (b.left < -0.5 || b.top < -0.5 || b.right > W + 0.5 || b.bottom > H + 0.5) bad.push(`${s} leaves the window: ${[b.left, b.top, b.right, b.bottom].map(Math.round)}`);
   }
-  const f = r('#title .frame'), p = r('#title .plate');
-  if (f && p && p.top < f.bottom) bad.push('the plate overlaps the frame');
+  const u = r('#title .actions'), k = r('#title .keys-brief'), h = r('#title .head'), top = r('#title .lockup');
+  if (u && k && !(k.top >= u.bottom || k.left >= u.right)) bad.push(`the controls overlap the actions ${[k.left, k.top, u.right, u.bottom].map(Math.round)}`);
+  if (h && top && h.top < top.bottom) bad.push('the headline runs into the lockup');
   const v = r('#view');
-  return { bad, view: v && [v.width, v.height].map(Math.round), frame: f && [f.width, f.height].map(Math.round) };
+  return { bad, view: v && [v.width, v.height].map(Math.round), head: h && [h.width, h.height].map(Math.round) };
 }
 
 for (const size of ['1440x900', '800x1350', '360x640']) {
@@ -60,17 +61,29 @@ for (const size of ['1440x900', '800x1350', '360x640']) {
   await page.waitForTimeout(2500);
   await page.screenshot({ path: join(out, `${size}-title.png`) });
   const l = await page.evaluate(layout);
-  check(!l.bad.length, `${size} title layout ${l.bad.join('; ')} (painting ${l.view}, frame ${l.frame})`);
+  check(!l.bad.length, `${size} title layout ${l.bad.join('; ')} (view ${l.view}, headline ${l.head})`);
   check(await page.evaluate(() => getComputedStyle(document.querySelector('#omni-top')).visibility === 'hidden'), `${size} no HUD on the title`);
 
+  if (size === '360x640') {
+    await page.keyboard.press('Space');
+    await page.waitForFunction(() => window.lab.title.state().state === 'world', null, { timeout: 20000 });
+    check(true, 'Space rides in');
+  }
   if (size === '1440x900') {
+    await page.evaluate(() => localStorage.setItem('omnipair-world.play.v1', JSON.stringify({ best: { score: 1240, delivered: 9, combo: 3 } })));
+    await page.reload();
+    await page.waitForFunction(() => window.lab?.ready && window.lab.title?.state().ready, null, { timeout: 120000 });
+    await page.waitForTimeout(2500);
+    check(await page.evaluate(() => document.querySelector('#title .best').textContent.includes('1,240')), 'the personal best shows');
+    await page.screenshot({ path: join(out, `${size}-best.png`) });
     await page.click('#title .how');
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(out, `${size}-howto.png`) });
     await page.click('#title .howto .close');
     check(await page.evaluate(() => !window.lab.title.state().howto), 'how to play closes');
 
-    // the step in: six frames by how far it has gone
+    const fired = page.evaluate(() => new Promise((r) => window.lab.ctx.on('title:enter', () => r(true))));
+    // the ride in: six frames by how far it has gone
     await page.click('#title .step');
     const marks = [0.02, 0.2, 0.4, 0.6, 0.8, 1];
     for (let i = 0; i < marks.length; i++) {
@@ -85,10 +98,11 @@ for (const size of ['1440x900', '800x1350', '360x640']) {
     check(st.title.state === 'world' && !st.cls.includes('title'), `in the world after stepping in (${JSON.stringify(st.title)}, html.${st.cls})`);
     check(st.view[0] === width, `the painting is the whole window again (${st.view})`);
     check(st.lock, 'the mouse was asked for on the step in');
+    check(await fired, 'title:enter fired');
     check(st.audio.context === 'running', `sound runs after stepping in (${st.audio.context})`);
 
     // every effect plays and makes its nodes
-    for (const name of ['token', 'pair', 'product', 'deposit', 'finish', 'leap', 'land', 'crash', 'splash', 'click', 'gull']) {
+    for (const name of ['token', 'pair', 'product', 'deposit', 'finish', 'leap', 'land', 'crash', 'splash', 'click', 'gull', 'refuse', 'boost', 'bump', 'mount', 'whistle']) {
       const r = await page.evaluate((n) => { const before = window.lab.audio.state().made; const ok = window.lab.audio.play(n, { kind: 'b', key: 'lending', pairs: 5, clean: false }); return { ok, made: window.lab.audio.state().made - before, error: window.lab.audio.state().error }; }, name);
       check(r.ok && r.made > 0 && !r.error, `effect ${name}: ${r.made} nodes${r.error ? `, ${r.error}` : ''}`);
     }
@@ -130,6 +144,21 @@ for (const size of ['1440x900', '800x1350', '360x640']) {
     const rmsDb = 20 * Math.log10(mix.rms);
     check(mix.peak < 0.98 && mix.peak > 0.05, `mix peak ${mix.peak.toFixed(3)}`);
     check(rmsDb > -40 && rmsDb < -12, `mix RMS ${rmsDb.toFixed(1)} dBFS; per second ${mix.win.join(' ')}; ${mix.made} nodes`);
+
+    // the worst pile-up at full volume: a fast streak, a big deposit, a leverage, a crash and a boost at once
+    const pile = await page.evaluate(async () => {
+      const fx = [];
+      for (let i = 0; i < 12; i++) fx.push([0.5 + i * 0.08, 'token', { kind: i % 2 ? 'a' : 'b' }]);
+      fx.push([1, 'deposit', { pairs: 16 }], [1, 'product', { key: 'leverage' }], [1.05, 'crash'], [1.1, 'boost'], [1.2, 'splash'], [1.3, 'finish'], [1.3, 'bump', { speed: 12 }]);
+            const { channels } = await window.lab.audio.render(4, { speed: 1, sea: 1, lagoon: 1, wind: 1, water: 1, spray: 1, glide: 1, roll: 1, grit: 1 }, fx, { music: 1, effects: 1 });
+      let peak = 0; for (const ch of channels) for (let i = 0; i < ch.length; i++) peak = Math.max(peak, Math.abs(ch[i]));
+      return { peak, music: 1, effects: 1 };
+    });
+    check(pile.peak < 0.98, `pile-up peak ${pile.peak.toFixed(3)} (music ${pile.music}, effects ${pile.effects})`);
+    // per-frame cost of the title and the sound while riding
+    await page.waitForTimeout(3000);
+    const ms = await page.evaluate(() => window.lab.title.state().ms);
+    check(ms < 0.5, `title and sound per frame ${ms} ms`);
 
     // Back to title from the options
     await page.evaluate(() => window.lab.options.open());
