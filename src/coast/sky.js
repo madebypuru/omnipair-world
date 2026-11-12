@@ -86,7 +86,7 @@ export function createSky(shared) {
 
   // --- the knife's slabs over the blue ---
   {
-    const count = 3600;
+    const count = 1900;
     group.add(dabMesh(dabGeometry(count, { aDir: [dirsOver(count, -0.02, 1.0), 4] }), dabMaterial(shared, {
       head: COAST + /* glsl */ `in vec4 aDir;`,
       body: /* glsl */ `
@@ -104,8 +104,13 @@ export function createSky(shared) {
           // near the horizon they lie level, as a sunset is laid; higher up they fall in long diagonals
           float fall = (0.15 + 0.55 * smoothstep(0.0, 0.8, v.y) + 0.7 * (r.x - 0.5)) * smoothstep(0.03, 0.3, v.y);
           d.dir = normalize(level - vec3(0.0, side * fall, 0.0));
+          // in the sunset's half they fan out from the sun, as the reference's slabs do
+          float warm = sunsetAt(v);
+          vec3 fromSun = normalize(v - skySun() * dot(v, skySun()) * 1.0 + 1e-4);
+          vec3 fan = normalize(fromSun - v * dot(fromSun, v));
+          d.dir = normalize(mix(d.dir, sign(dot(fan, d.dir) + 1e-4) * fan, smoothstep(0.15, 0.6, warm) * 0.3 * smoothstep(0.03, 0.2, v.y)));
           d.spin = (k.x - 0.5) * 0.5;
-          d.size = vec2(16.0 + 70.0 * pow(r.y, 1.6), 1.0);
+          d.size = vec2(26.0 + 100.0 * pow(r.y, 1.4), 1.0);
           d.size.y = d.size.x * (k.y < 0.25 ? 2.2 + 1.0 * k.z : 0.9 + 1.2 * r.z);
           float room = sd * ${FAR}.0 * 1.6;
           d.size *= min(1.0, room / max(d.size.y, 1.0));
@@ -113,9 +118,9 @@ export function createSky(shared) {
           if (d.size.y > 2.2 * d.size.x) d.cell = k.w < 0.5 ? ${KNIFE + 1}.0 : ${KNIFE + 5}.0;
           d.size *= mix(0.45, 1.0, smoothstep(0.9985, 0.993, dot(v, skySun())));
           d.size.x *= mix(0.45, 1.0, smoothstep(0.02, 0.2, v.y));
-          vec3 c = coastSky(normalize(v + (r.wxy - 0.5) * vec3(0.05, 0.02, 0.05)));
-          d.c1 = jitter(c, r.yzw, 0.1);
-          d.c2 = jitter(c * 1.05 + vec3(0.015, 0.015, 0.025), r.wxy, 0.12);
+          vec3 c = coastSky(normalize(v + (r.wxy - 0.5) * vec3(0.08, 0.03, 0.08)));
+          d.c1 = jitter(c, r.yzw, 0.16);
+          d.c2 = jitter(c * 1.05 + vec3(0.02, 0.015, 0.02), r.wxy, 0.16);
           d.seed = aDir.w;
           d.lift = 0.0;
         }`,

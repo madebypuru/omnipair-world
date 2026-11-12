@@ -22,3 +22,5 @@ dist-world/
 .probe.mjs
 .shots-world/
 .cost.mjs
+dist-layer/
+dist-paint/

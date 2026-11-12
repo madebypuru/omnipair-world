@@ -259,12 +259,12 @@ export function createRide(ctx) {
     v1.set(-grad.x, 1, -grad.z).normalize();
     s.up.lerp(v1, 1 - Math.exp(-12 * dt)).normalize();
     speed = Math.hypot(s.vel.x, s.vel.z);
-    const lean = clamp(0.75 * Math.atan2(speed * s.turn, 9.81), -0.48, 0.48);
+    const lean = clamp(0.9 * Math.atan2(speed * s.turn, 9.81), -0.55, 0.55);
     s.lean = damp(s.lean, lean, 8, dt);
     // a leap: a short crouch, then up, higher the faster he goes and the more the ground lifts him
     s.crouchFor = Math.max(0, s.crouchFor - dt);
     if (inp.jump && !s.leapQueued) { s.leapQueued = true; s.crouchFor = RIDE.crouchTime; }
-    const wantCrouch = (s.leapQueued ? 0.26 : 0.15) + 0.08 * Math.abs(s.lean) + (s.wobble > 0 ? 0.1 : 0);
+    const wantCrouch = (s.leapQueued ? 0.34 : 0.24) + 0.1 * Math.abs(s.lean) + (s.wobble > 0 ? 0.08 : 0);
     s.crouch = damp(s.crouch, wantCrouch, s.leapQueued ? 30 : 8, dt);
     s.wobble = Math.max(0, s.wobble - dt);
     // where the surface is now, and whether it has fallen away faster than he can follow it
@@ -411,7 +411,6 @@ export function createRide(ctx) {
       if (water && i % 2 === 0) wake.emit(KIND.spray, s.pos.x + sn * 0.4, s.pos.y + 0.1, s.pos.z + c * 0.4, sn * sp * 0.6, 2.5 + Math.random() * 2.5, c * sp * 0.6, sn, c, 1.1);
     }
   }
-  const camF = new THREE.Vector3(), camR = new THREE.Vector3(), camU = new THREE.Vector3();
   function effects(dt, boosting) {
     const speed = Math.hypot(s.vel.x, s.vel.z);
     if (s.mode === 'ride' && speed > 1.5) {
@@ -442,18 +441,6 @@ export function createRide(ctx) {
           const side = Math.random() - 0.5;
           wake.emit(KIND.dust, s.pos.x - fx * 0.6 + rx * side * 0.4, s.pos.y + 0.05, s.pos.z - fz * 0.6 + rz * side * 0.4, rx * side * 2 + fx * speed * 0.25, 0.8 + Math.random() * 1.6, rz * side * 2 + fz * speed * 0.25, fx, fz, s.surface === 'sand' ? 0.8 : 1);
         }
-      }
-    }
-    // speed streaks at the edges of the picture while boosting
-    if (boosting && speed > 10) {
-      camera.getWorldDirection(camF);
-      camR.crossVectors(camF, Y).normalize(); camU.crossVectors(camR, camF);
-      const th = Math.tan((camera.fov * DEG) / 2);
-      for (let i = 0; i < 2; i++) {
-        const d = 4 + Math.random() * 6, a = Math.random() * TAU, e = 0.82 + Math.random() * 0.2;
-        const px = Math.cos(a) * d * th * camera.aspect * e, py = Math.sin(a) * d * th * e;
-        v1.copy(camera.position).addScaledVector(camF, d).addScaledVector(camR, px).addScaledVector(camU, py);
-        wake.emit(KIND.streak, v1.x, v1.y, v1.z, 0, 0, 0, s.vel.x, s.vel.z, 0.7 + Math.random() * 0.6, 0);
       }
     }
     wake.update(dt, surfY);
@@ -495,13 +482,13 @@ export function createRide(ctx) {
   function pose(dt) {
     if (s.mode === 'walk') return;
     const m = board.group.matrixWorld;
-    feet.l.set(0, board.deckY, 0.31).applyMatrix4(m);
-    feet.r.set(0, board.deckY, -0.31).applyMatrix4(m);
+    feet.l.set(0, board.deckY, 0.37).applyMatrix4(m);
+    feet.r.set(0, board.deckY, -0.35).applyMatrix4(m);
     const up = v2.set(0, 1, 0).applyQuaternion(boardQ);
     const air = s.mode === 'air' ? smooth(0.05, 0.25, s.air) : 0;
     const w = {
-      ride: (1 - air) * (1 - smooth(0.12, 0.3, s.crouch)),
-      crouch: (1 - air) * smooth(0.12, 0.3, s.crouch),
+      ride: (1 - air) * (1 - smooth(0.28, 0.4, s.crouch)),
+      crouch: (1 - air) * smooth(0.28, 0.4, s.crouch),
       air: air * (s.gliding ? 0.2 : 1),
       glide: air * (s.gliding ? 0.8 : 0),
     };
@@ -519,14 +506,17 @@ export function createRide(ctx) {
     s.lookIdle = Math.abs(inp.look.x) + Math.abs(inp.look.y) > 1e-4 ? 0 : s.lookIdle + dt;
     if (s.lookIdle > 1.2 && s.mode !== 'crash') {
       const travelYaw = speed > 1.5 ? Math.atan2(s.vel.x, s.vel.z) : s.heading;
+      // when the sun is ahead or to a side, the eye turns a little toward it so the sea and the sun stay in the picture
+      const sun = ctx.shared.uSunDir?.value, toSun = sun ? wrap(Math.atan2(sun.x, sun.z) - travelYaw) : 0;
+      const bias = sun ? 0.24 * Math.sin(toSun) * smooth(-0.4, 0.3, Math.cos(toSun)) : 0;
       const k = smooth(1.2, 2.5, s.lookIdle) * (1 - Math.exp(-2.2 * dt));
-      follow.yaw += wrap(travelYaw - follow.yaw) * k;
-      if (follow.pitch < 0.45) follow.pitch = damp(follow.pitch, 0.06, 0.8 * smooth(1.2, 2.5, s.lookIdle), dt);
+      follow.yaw += wrap(travelYaw + bias - follow.yaw) * k;
+      if (follow.pitch < 0.45) follow.pitch = damp(follow.pitch, 0.1, 0.8 * smooth(1.2, 2.5, s.lookIdle), dt);
     }
-    // farther back and wider the faster he goes; the eye looks a little ahead of him
+    // farther back, higher and wider the faster he goes; the eye looks a little ahead of him
     const fast = smooth(4, 22, speed);
-    s.fov = damp(s.fov, 16 * fast, 2.5, dt);
-    pulled = 1.6 * fast;
+    s.fov = damp(s.fov, 19 * fast, 2.5, dt);
+    pulled = 2.2 * fast;
     follow.want += pulled;
     lead.set(s.vel.x, 0, s.vel.z).multiplyScalar(0.12);
     return v1.copy(root).add(lead);

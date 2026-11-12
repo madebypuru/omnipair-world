@@ -19,7 +19,8 @@ body.playing #omni-top > .tc { flex-direction: column; align-items: center; gap:
   font-variant-numeric: tabular-nums; background: rgba(251, 249, 247, 0.07); white-space: nowrap; }
 .play-chip .disc { width: 13px; height: 13px; border-radius: 50%; box-sizing: border-box; flex: none; }
 .play-chip.a .disc { background: var(--cream); }
-.play-chip.b .disc { background: var(--ink); border: 2px solid var(--cream); }
+.play-chip.a .disc { box-shadow: inset 0 0 0 2px #f0b878; }
+.play-chip.b .disc { background: var(--trade); border: 2px solid var(--cream); }
 .play-chip.pairs { padding: 0 9px; background: var(--cream); color: var(--ink); }
 .play-chip.pairs.none { background: rgba(251, 249, 247, 0.07); color: rgba(251, 249, 247, 0.5); }
 .play-chip.bump { animation: play-bump 0.3s; }
@@ -28,17 +29,20 @@ body.playing #omni-top > .tc { flex-direction: column; align-items: center; gap:
 #play-score .tags:empty { display: none; }
 .play-tag { height: 22px; padding: 0 8px; border-radius: 11px; font-size: 13px; font-weight: 600; line-height: 22px; white-space: nowrap; color: var(--ink); background: var(--accent); }
 
-/* top centre: where to go next, and the first minute's lessons under it */
-#play-objective { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: var(--tap); padding: 7px 16px 8px 12px; max-width: min(440px, 100%); }
-#play-objective .row { display: flex; align-items: center; gap: 9px; white-space: nowrap; }
+/* top centre: one slim line, where to go next and the first minute's lesson after it */
+#play-objective { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px 8px; min-height: 34px; padding: 6px 14px 6px 9px; max-width: min(660px, 100%); border-radius: 17px; white-space: nowrap; font-size: 13.5px; }
 .play-arrow { width: 22px; height: 22px; flex: none; color: var(--accent, var(--cream)); transform: rotate(var(--turn, 0rad)); }
-#play-objective .name { font-weight: 600; }
-#play-objective .far { color: rgba(251, 249, 247, 0.6); font-variant-numeric: tabular-nums; }
-#play-objective .teach { color: rgba(251, 249, 247, 0.78); font-size: 13px; text-align: center; }
+#play-objective .play-arrow { width: 17px; height: 17px; }
+#play-objective .name { font-weight: 600; flex: none; }
+#play-objective .far { color: rgba(251, 249, 247, 0.6); font-variant-numeric: tabular-nums; flex: none; }
+#play-objective .teach { min-width: 0; white-space: normal; text-align: center; color: rgba(251, 249, 247, 0.75); }
+#play-objective .teach::before { content: ""; display: inline-block; width: 1px; height: 13px; margin: 0 10px -2px 2px; background: rgba(251, 249, 247, 0.22); }
 #play-objective .teach:empty { display: none; }
 
-/* left: the highlights, Tab picks one to steer by */
-#play-highlights { position: fixed; z-index: 4; left: var(--gap); top: 50%; transform: translateY(-50%); width: 210px; padding: 8px 6px 8px 8px; }
+/* left: the highlights, only for a few seconds after Tab (each press picks the next one to steer by) */
+#play-highlights { position: fixed; z-index: 4; left: var(--gap); top: 50%; transform: translate(-8px, -50%); width: 210px; padding: 8px 6px 8px 8px;
+  opacity: 0; visibility: hidden; transition: opacity 0.2s, transform 0.2s, visibility 0s 0.2s; }
+#play-highlights.open { opacity: 1; visibility: visible; transform: translateY(-50%); transition: opacity 0.2s, transform 0.2s; }
 #play-highlights .head { display: flex; justify-content: space-between; padding: 0 6px 6px; color: rgba(251, 249, 247, 0.5); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
 #play-highlights .head b { color: rgba(251, 249, 247, 0.8); letter-spacing: 0; }
 #play-highlights ol { list-style: none; margin: 0; padding: 0; }
@@ -58,9 +62,11 @@ body.playing #omni-top > .tc { flex-direction: column; align-items: center; gap:
 #play-keys span { white-space: nowrap; }
 #play-keys b { display: inline-block; min-width: 18px; margin-right: 5px; padding: 0 5px; border-radius: 5px; background: rgba(251, 249, 247, 0.12); color: var(--cream); text-align: center; font-weight: 650; }
 #play-keys .go b { background: var(--cream); color: var(--ink); }
+#play-keys { transition: opacity 1.2s, visibility 0s; }
+#play-keys.quiet { opacity: 0; visibility: hidden; transition: opacity 1.2s, visibility 0s 1.2s; }
 
 /* the combo, while in the air and a little after */
-#play-combo { position: fixed; z-index: 4; left: 50%; bottom: calc(var(--gap) + 200px); display: flex; align-items: center; gap: 10px; padding: 7px 14px;
+#play-combo { position: fixed; z-index: 4; left: 50%; bottom: calc(var(--gap) + 240px); display: flex; align-items: center; gap: 10px; padding: 7px 14px;
   transform: translate(-50%, 8px); opacity: 0; transition: opacity 0.2s, transform 0.2s; }
 #play-combo.on { opacity: 1; transform: translate(-50%, 0); }
 #play-combo .x { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; background: linear-gradient(90deg, var(--leverage), var(--lending), var(--trade)); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -77,10 +83,26 @@ body.playing #omni-top > .tc { flex-direction: column; align-items: center; gap:
 #play-count .plus { font-size: 52px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums;
   background: linear-gradient(90deg, var(--leverage), var(--lending) 50%, var(--trade)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 #play-count .how { color: rgba(251, 249, 247, 0.8); font-size: 14px; }
-#play-flash { display: none; padding: 9px 16px; border-color: var(--accent); }
-#play-flash.on { display: block; animation: play-flash 2.8s forwards; }
-#play-flash .t { color: var(--accent); font-weight: 650; }
+/* low centre, a row of the bottom band over the prompt and the keys: one notice at a time, cream words after a dot of a
+   product's colour; the goals' toasts come to the same place and wait while a notice shows */
+body.playing #omni-bottom { grid-template-areas: "notice notice notice" "prompt prompt prompt" "lockup hint ."; }
+#play-flash { grid-area: notice; justify-self: center; display: none; align-items: center; gap: 10px; max-width: min(520px, calc(100vw - 2 * var(--gap) - 340px));
+  padding: 8px 16px 8px 13px; border-radius: 19px; font-size: 14px; }
+#play-flash .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+#play-flash .t { color: var(--cream); font-weight: 550; }
+#play-flash .t b { display: inline-block; min-width: 14px; margin-right: 4px; padding: 0 5px; border-radius: 5px; background: var(--cream); color: var(--ink); text-align: center; font-weight: 650; }
+#play-flash.on { display: flex; animation: play-flash 2.8s forwards; }
+#play-flash.held { display: flex; animation: play-flash-in 0.3s; }
 @keyframes play-flash { 0% { opacity: 0; transform: translateY(6px); } 8%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes play-flash-in { from { opacity: 0; transform: translateY(6px); } }
+body.playing #omni-toasts { grid-area: notice; justify-self: center; width: min(420px, calc(100vw - 2 * var(--gap) - 340px)); }
+body.playing .goal-toast { padding: 7px 12px 7px 8px; gap: 10px; border-radius: 14px; }
+body.playing .goal-toast .sym { width: 28px; height: 28px; border-radius: 8px; }
+body.playing .goal-toast .sym .omni-mark { width: 16px; height: 16px; }
+body.playing .goal-toast .d { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.playing .goal-toast .tick { width: 12px; height: 12px; box-shadow: 0 0 10px var(--accent); }
+body.playing .goal-toast .tick svg { display: none; }
+body.play-notice #omni-toasts { visibility: hidden; }
 
 /* the score card, at the Pool */
 #play-card { position: fixed; inset: 0; z-index: 7; display: grid; place-items: center; padding: var(--band) var(--gap) var(--gap); box-sizing: border-box;
@@ -109,7 +131,8 @@ body.playing #omni-top > .tc { flex-direction: column; align-items: center; gap:
 
 /* what yields: a modal holds the screen, and the card holds the game's glass */
 body[data-ui="board"] .play-yield, body[data-ui="map"] .play-yield, body[data-ui="goals"] .play-yield, body[data-ui="options"] .play-yield,
-body[data-play="card"] .play-yield, body[data-play="card"] #omni-toasts, body[data-play="card"] #play-center { display: none !important; }
+body[data-play="card"] .play-yield, body[data-play="card"] #omni-toasts, body[data-play="card"] #play-center, body[data-play="card"] #play-flash { display: none !important; }
+body[data-ui="panel"] #play-flash, body[data-ui="panel"] #omni-toasts { visibility: hidden; }
 body[data-ui="options"] #play-score, body[data-play="card"] #play-score { display: none; }
 /* under a modal only the score itself stays, one row, inside the top band */
 body[data-ui="map"] #play-score .row + .row, body[data-ui="goals"] #play-score .row + .row, body[data-ui="map"] #play-score .tags, body[data-ui="goals"] #play-score .tags { display: none; }
@@ -121,12 +144,14 @@ body[data-ui="panel"] #play-keys { visibility: hidden; }
 /* a phone: no keyboard to hint at; the map goes to the right, clear of the prompt */
 @media (max-width: 699px) {
   #play-keys { display: none; }
+  #play-objective .teach { display: none; }
   #play-minimap { width: 92px; height: 92px; left: auto; right: var(--gap); }
   #play-score .best { display: none; }
   #play-center { top: 52%; }
   .play-tag { height: auto; white-space: normal; line-height: 18px; padding: 2px 8px; }
   body[data-ui="panel"] #play-minimap { display: none; }
   #play-count .plus { font-size: 40px; }
-  #play-combo { bottom: calc(var(--gap) + 110px); }
+  #play-combo { bottom: calc(var(--gap) + 200px); }
+  #play-flash, body.playing #omni-toasts { margin-bottom: 44px; max-width: calc(100vw - 2 * var(--gap)); width: auto; }
 }
 @media (max-height: 560px) { #play-highlights { display: none; } }

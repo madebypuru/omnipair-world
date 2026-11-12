@@ -1,5 +1,5 @@
-// The tokens in the world: about three hundred small discs of paint that bob and turn in the air, A cream and B
-// near-black with a cream ring, each with a soft light round it so it reads from far off at dusk. They are laid by a
+// The tokens in the world: about three hundred small discs of paint that bob and turn in the air, A cream with an
+// apricot rim and B dawn orange with a cream rim, each with a soft light of its own colour so it reads from far off. They are laid by a
 // seeded generator along lines worth riding: trails beside the way, arcs off the cliff edge, rings round the stacks'
 // shallows, lines across the low east shore, and high ones that need a leap. Any one stretch is mostly one kind, so a
 // rider has to roam, or trade, to make pairs.
@@ -10,10 +10,13 @@ import * as THREE from 'three';
 import { dabMaterial, dabGeometry, dabMesh } from '../oilpaint/dabs.js';
 import { KNIFE } from '../oilpaint/brush.js';
 import { heightAt, edgeX, wayX, START, POINT } from './land.js';
-import { CREAM, INK, rgb } from './brand.js';
+import { CREAM, PRODUCTS, rgb } from './brand.js';
 import { RULES, pickRadius } from './game.js';
 
-const PER = 8; // strokes per token: two for its rim, three for each face
+const PER = 8; // strokes per token: two for its rim, six for its face
+/** The two kinds' paint: A is cream, B the dawn orange of Trade's icon (its light for the knife's drag). */
+const TRADE = PRODUCTS.find((p) => p.key === 'trade').ramp;
+export const A_TONE = CREAM, B_TONE = TRADE[2], B_LIGHT = TRADE[3];
 const BURSTS = 6, BURST_N = 12, STREAM_N = 32;
 const vec = (c) => `vec3(${c.map((x) => x.toFixed(4)).join(', ')})`;
 
@@ -128,7 +131,7 @@ export function createTokens(shared, { seed } = {}) {
 
   const head = /* glsl */ `
     uniform sampler2D tWhere; uniform sampler2D tPicked;
-    const vec3 CREAM_ = ${vec(rgb(CREAM))}, INK_ = ${vec(rgb(INK))};
+    const vec3 CREAM_ = ${vec(rgb(CREAM))};
     // how whole token i is now: it shrinks away when picked and grows back RESPAWN seconds later
     float tokenAlive(int i) {
       float t = uTime - texelFetch(tPicked, ivec2(i, 0), 0).r;
@@ -143,6 +146,7 @@ export function createTokens(shared, { seed } = {}) {
 
   const paint = dabMesh(dabGeometry(T * PER + BURSTS * BURST_N + STREAM_N), dabMaterial(shared, {
     head: head + /* glsl */ `
+      const vec3 B_ = ${vec(rgb(B_TONE))}, BL_ = ${vec(rgb(B_LIGHT))};
       uniform vec4 uBurst[${BURSTS}]; uniform float uBurstKind[${BURSTS}];
       uniform vec4 uStream; uniform vec3 uStreamTo; uniform float uStreamN;`,
     body: /* glsl */ `
@@ -155,32 +159,32 @@ export function createTokens(shared, { seed } = {}) {
           float k = mod(id, ${PER}.0), kind;
           vec3 c = tokenAt(i, kind);
           d.alive = tokenAlive(i);
-          // the disc stands up and turns about the vertical
-          float turn = uTime * 1.5 + float(i) * 2.3;
-          vec3 n = vec3(sin(turn), 0.0, cos(turn)), u = vec3(cos(turn), 0.0, -sin(turn)), up = vec3(0.0, 1.0, 0.0);
-          d.lie = 1.0;
-          d.nrm = n;
+          // a disc that always faces the eye and turns slowly about the vertical like a coin: its strokes run up and
+          // down and narrow as it turns edge on, never past half
+          float turn = uTime * 0.9 + float(i) * 2.3;
+          float squash = 0.5 + 0.5 * abs(cos(turn));
+          vec3 toEye = normalize(cameraPosition - c);
+          vec3 side = normalize(cross(vec3(0.0, 1.0, 0.0), toEye) + vec3(1e-4, 0.0, 0.0));
           d.pos = c;
-          // read from far off: a disc grows a little with distance, as a painter would keep it a touch
-          float grow = 1.0 + 1.2 * smoothstep(25.0, 110.0, distance(c, cameraPosition));
+          // read from far off: a disc grows with distance, as a painter keeps it a touch
+          float grow = 1.0 + 1.6 * smoothstep(20.0, 100.0, distance(c, cameraPosition));
+          float a = (r.x - 0.5) * 0.5;
+          d.dir = vec3(0.0, 1.0, 0.0) * cos(a) + side * sin(a);
           if (k < 2.0) {
-            // the rim: a wider disc behind, cream round B, warm gold round A
-            float a = k * 1.571 + r.x * 0.5;
-            d.dir = u * cos(a) + up * sin(a);
-            d.size = vec2(0.84, 0.88) * grow;
-            d.c1 = kind < 0.5 ? vec3(0.88, 0.74, 0.5) : CREAM_;
-            d.c2 = kind < 0.5 ? vec3(0.95, 0.83, 0.62) : vec3(1.0, 0.93, 0.8);
+            // the rim, behind: warm apricot round A, cream round B
+            d.size = vec2(0.86 * squash, 0.9) * grow;
+            d.c1 = kind < 0.5 ? vec3(0.94, 0.72, 0.46) : CREAM_;
+            d.c2 = kind < 0.5 ? vec3(1.0, 0.84, 0.6) : vec3(1.0, 0.95, 0.86);
+            d.lift = 0.0;
           } else {
-            // the face, on both sides of the rim: three strokes a side
-            float a = (k - 2.0) * 1.047 + (r.x - 0.5) * 0.4;
-            d.dir = u * cos(a) + up * sin(a);
-            d.size = vec2(0.58, 0.62) * (0.92 + 0.12 * r.y) * grow;
-            d.height = mod(k, 2.0) < 0.5 ? 0.025 : -0.025;
-            d.c1 = kind < 0.5 ? CREAM_ * (0.95 + 0.05 * r.z) : INK_ + vec3(0.02, 0.018, 0.016) * r.z;
-            d.c2 = kind < 0.5 ? vec3(1.0, 0.95, 0.86) : vec3(0.1, 0.09, 0.09);
+            // the face: A cream, B dawn orange going to its light where the knife drags
+            d.size = vec2(0.62 * squash, 0.66) * (0.9 + 0.12 * r.y) * grow;
+            d.pos += side * (k - 4.5) * 0.03 * squash * grow;
+            d.c1 = kind < 0.5 ? CREAM_ * (0.92 + 0.05 * r.z) : B_ * (0.95 + 0.08 * r.z);
+            d.c2 = kind < 0.5 ? vec3(0.97, 0.84, 0.66) : mix(B_, BL_, 0.45);
+            d.lift = 0.25;
           }
           d.cell = ${KNIFE + 4}.0;
-          d.lift = 0.0;
           return;
         }
         float j = id - ${T * PER}.0;
@@ -192,15 +196,15 @@ export function createTokens(shared, { seed } = {}) {
           vec3 o = normalize(vec3(r.x - 0.5, r.y * 0.9 - 0.2, r.z - 0.5) + 1e-4);
           d.pos = uBurst[b].xyz + o * (0.25 + 2.0 * (1.0 - (1.0 - t) * (1.0 - t)));
           d.dir = o;
-          d.size = vec2(0.1, 0.36 + 0.2 * r.w);
-          bool cream = uBurstKind[b] < 0.5 || r.w > 0.5;
-          d.c1 = cream ? CREAM_ : INK_ + 0.03;
-          d.c2 = cream ? vec3(1.0, 0.86, 0.62) : CREAM_ * 0.6;
+          d.size = vec2(0.1, 0.3 + 0.16 * r.w);
+          bool cream = uBurstKind[b] < 0.5 || r.w > 0.6;
+          d.c1 = cream ? CREAM_ : B_;
+          d.c2 = cream ? vec3(1.0, 0.86, 0.62) : BL_;
           d.cell = ${KNIFE}.0 + floor(r.w * 3.0);
           d.lift = 0.2;
           return;
         }
-        // the carry poured into the Pool: each pair a cream stroke and a dark one, one after another on an arc
+        // the carry poured into the Pool: each pair a cream stroke and an orange one, one after another on an arc
         float s = j - ${BURSTS * BURST_N}.0;
         float t = (uTime - uStream.w - s * 0.035) / 0.9;
         d.alive = s >= uStreamN || t < 0.0 || t > 1.0 ? 0.0 : smoothstep(0.0, 0.1, t) * (1.0 - smoothstep(0.85, 1.0, t));
@@ -208,20 +212,20 @@ export function createTokens(shared, { seed } = {}) {
         vec3 from = uStream.xyz + vec3((r.x - 0.5) * 0.8, 1.0 + (r.y - 0.5) * 0.6, (r.z - 0.5) * 0.8);
         d.pos = mix(from, uStreamTo, e) + vec3(0.0, 6.0 * sin(3.14159 * e), 0.0);
         d.dir = normalize(uStreamTo - from + vec3(0.0, 18.0 * cos(3.14159 * e), 0.0));
-        d.size = vec2(0.24, 0.8);
-        bool dark = mod(s, 2.0) > 0.5;
-        d.c1 = dark ? INK_ + 0.02 : CREAM_;
-        d.c2 = dark ? CREAM_ * 0.5 : vec3(1.0, 0.88, 0.66);
+        d.size = vec2(0.14, 0.42);
+        bool orange = mod(s, 2.0) > 0.5;
+        d.c1 = orange ? B_ : CREAM_;
+        d.c2 = orange ? BL_ : vec3(1.0, 0.88, 0.66);
         d.lift = 0.3;
       }`,
     uniforms: { ...uniforms, uImpasto: { value: 0.35 } },
-    minPx: [3, 5], maxPx: [300, 600], cells: [KNIFE, 3],
+    minPx: [4, 6], maxPx: [300, 600], cells: [KNIFE, 3],
   }), 18);
 
-  // their light: a wide soft halo and a small bright one round each, added to what is behind
+  // their light: a wide soft halo and a small bright one round each, in its own colour, added to what is behind
   const LIGHT = 2;
   const glow = dabMesh(dabGeometry(T * LIGHT), dabMaterial(shared, {
-    head,
+    head: head + /* glsl */ `const vec3 B_ = ${vec(rgb(B_TONE))};`,
     body: /* glsl */ `
       void makeDab(inout Dab d) {
         float id = float(gl_InstanceID);
@@ -233,15 +237,15 @@ export function createTokens(shared, { seed } = {}) {
         d.alive = tokenAlive(i);
         d.dir = normalize(vec3(r.x - 0.5, 1.0, r.z - 0.5));
         float far_ = smoothstep(15.0, 90.0, distance(d.pos, cameraPosition));
-        d.size = (wide ? vec2(1.7, 2.1) : vec2(0.8, 0.95)) * (1.0 + 0.6 * far_);
-        vec3 warm = vec3(1.0, 0.82, 0.58);
-        d.c1 = warm * (wide ? 0.09 : 0.14) * (kind < 0.5 ? 1.0 : 0.7) * (0.85 + 0.15 * sin(uTime * 3.0 + float(i)));
+        d.size = (wide ? vec2(1.8, 2.1) : vec2(0.9, 1.0)) * (1.0 + 1.0 * far_);
+        vec3 tint = kind < 0.5 ? vec3(1.0, 0.78, 0.5) : B_;
+        d.c1 = tint * (kind < 0.5 ? (wide ? 0.05 : 0.06) : (wide ? 0.12 : 0.16)) * (0.85 + 0.15 * sin(uTime * 3.0 + float(i)));
         d.c2 = d.c1 * 1.2;
         d.seed = id;
         d.lift = 0.0;
       }`,
     uniforms: { ...uniforms, uImpasto: { value: 0.2 } },
-    minPx: [4, 6], maxPx: [300, 600], cells: [0, 6],
+    minPx: [5, 8], maxPx: [300, 600], cells: [0, 6],
   }), 22);
   glow.material.transparent = true;
   glow.material.blending = THREE.AdditiveBlending;

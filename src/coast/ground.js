@@ -66,8 +66,11 @@ void makeDab(inout Dab d) {
     if (xz.x - edgeX(xz.y) > 60.0) {
       c1 = bluffPaint(xr * 0.7, q.y);
       c2 = bluffPaint(xr * 0.7 + 0.08, q.w) * 1.05;
-      d.dir = normalize(contour + (q.xyz - 0.5) * 0.15);
-      d.size *= 0.5;
+      // broad calm beds: long flat strokes with a clean blade, never the chipped one
+      d.dir = normalize(contour + (q.xyz - 0.5) * 0.08);
+      d.size = uCell0 * vec2(2.2 + 1.6 * k.z, 1.0) * lod;
+      d.size.y = d.size.x * (1.8 + 1.2 * r.w);
+      d.cell = k.w < 0.6 ? ${KNIFE}.0 : ${KNIFE + 3}.0;
     }
     // where the rock turns over an edge, a flat stroke would stand out past it into the sky: keep it small there
     vec3 ra = d.dir * d.size.y * 0.5;
@@ -123,11 +126,13 @@ void makeDab(inout Dab d) {
     d.alive = smoothstep(10.0, 34.0, dist);
     if (d.alive <= 0.0) return;
     float kind = texture(tNoise, P.xz / 41.0).g + (q.x - 0.5) * 0.2;
-    c = P.x - (22.0 * sin(P.z / 120.0) + 9.0 * sin(P.z / 41.0 + 1.3)) > 60.0 ? bluffPaint(rockOn(P, Nn) * 0.7, q.y) : rockPaint(rockOn(P, Nn), q.y, kind, Nn);
+    bool bluff = P.x - (22.0 * sin(P.z / 120.0) + 9.0 * sin(P.z / 41.0 + 1.3)) > 60.0;
+    c = bluff ? bluffPaint(rockOn(P, Nn) * 0.7, q.y) : rockPaint(rockOn(P, Nn), q.y, kind, Nn);
     c = lampOn(c, c * 1.5 + 0.06, P);
-    // most cuts run down the cliff; some lie along its beds
-    bool bed = r.z > 0.75;
-    d.dir = normalize((bed ? contour : down) + (q.xyz - 0.5) * 0.4);
+    // most cuts run down the cliff; some lie along its beds; the sandstone bluffs are laid along their beds, calmly
+    bool bed = bluff || r.z > 0.75;
+    d.dir = normalize((bed ? contour : down) + (q.xyz - 0.5) * (bluff ? 0.12 : 0.4));
+    if (bluff) d.cell = q.x < 0.6 ? ${KNIFE}.0 : ${KNIFE + 3}.0;
     // big faceted slabs: the knife laid flat on the face
     d.size = vec2(2.6, 2.6 * (q.w < 0.2 ? 1.7 + 0.6 * r.z : 0.8 + 0.6 * q.w)) * (0.55 + 1.0 * r.y * r.y) * aData.w;
     // a cut lies on the rock face like a slab of paint laid with the knife: seen from the clifftop, a stroke
@@ -247,9 +252,9 @@ export function createGround(shared) {
     const stone = isRock > 0.5;
     if (rand() > (stone ? 0.6 : 0.09)) continue;
     normalAt(x, z, n);
-    // the low sandstone bluffs over the beach are cut with a smaller knife than the sea cliffs
+    // the low sandstone bluffs over the beach are laid in broad calm beds, a bigger knife than the sea cliffs
     const east = x - edgeX(z) > 60;
-    list.push([x, h, z, n.x, n.y, n.z, rand() * 1000, stone ? 1 : 0, cliff, stone ? (east ? 0.55 : 1.1 + 0.4 * cliff) : 1]);
+    list.push([x, h, z, n.x, n.y, n.z, rand() * 1000, stone ? 1 : 0, cliff, stone ? (east ? 1.3 : 1.1 + 0.4 * cliff) : 1]);
     if (stone) rock++; else turf++;
   }
   // laid in a fixed order, west to east: looking from the clifftop out to sea, the near cliff covers the stacks

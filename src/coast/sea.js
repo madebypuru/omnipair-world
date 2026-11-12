@@ -37,13 +37,18 @@ vec3 waterPaint(vec3 P, vec3 wobble, float shallow, float pick) {
   vec3 sky = coastSky(up);
   // the road of light toward the sun: narrow across, drawn out along
   vec2 h = normalize(v.xz), s = normalize(uSunDir.xz);
-  float road = pow(clamp(dot(normalize(h + wobble.xz * 0.15), s), 0.0, 1.0), 900.0) * smoothstep(-0.3, -0.01, v.y);
+  float facing = clamp(dot(normalize(h + wobble.xz * 0.15), s), 0.0, 1.0);
+  float far = smoothstep(-0.3, -0.01, v.y);
+  float road = pow(facing, 160.0) * far;
+  // the sunset's half of the water: the sky given back more strongly the nearer the eye looks toward the sun
+  float sunside = pow(facing, 5.0) * far;
   vec3 deep = pick < 0.45 ? vec3(0.08, 0.27, 0.6) : pick < 0.8 ? vec3(0.06, 0.19, 0.5) : vec3(0.18, 0.42, 0.72);
   vec3 near = pick < 0.5 ? vec3(0.14, 0.58, 0.66) : pick < 0.8 ? vec3(0.1, 0.44, 0.56) : vec3(0.26, 0.64, 0.7);
   vec3 body = mix(deep, near, shallow);
   float graze = pow(1.0 - clamp(-v.y, 0.0, 1.0), 6.0);
-  vec3 c = mix(body, sky, 0.04 + 0.2 * graze);
-  return mix(c, vec3(1.0, 0.78, 0.46), road * 0.9);
+  vec3 c = mix(body, sky, 0.04 + 0.2 * graze + 0.35 * sunside * graze);
+  c = mix(c, mix(vec3(0.98, 0.66, 0.5), vec3(1.0, 0.8, 0.5), road), clamp(road * 1.1 + 0.25 * pow(facing, 40.0) * far, 0.0, 0.92));
+  return c;
 }
 // Calm water a hand deep: inside the lagoon and the tide pools.
 float calmAt(vec2 xz) { return max(abs(xz.x), abs(xz.y)) < uExtent ? coastAt(xz).b : 0.0; }

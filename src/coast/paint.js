@@ -91,8 +91,9 @@ vec3 lampOn(vec3 c, vec3 own, vec3 P) {
 // How lit a spot is for paint3: what faces the low sun is lit, what the cliffs shade is in shade. A lamp's pool
 // lifts it toward the lit mix too.
 float sunOn(vec3 P, vec3 Nn) {
-  // the sun is so low that level turf only grazes it: anything not turned away from it still reads as lit
-  float s = woodSunAt(P + Nn * 0.6 + vec3(0.0, 0.3, 0.0)) * clamp(dot(Nn, uSunDir) * 2.2 + 0.36, 0.0, 1.0);
+  // the sun is on the horizon: level turf only grazes it and stays in half-tone; the warm light is on what turns
+  // toward it, and what turns away is in shade
+  float s = woodSunAt(P + Nn * 0.6 + vec3(0.0, 0.3, 0.0)) * clamp(dot(Nn, uSunDir) * 3.2 + 0.05, 0.0, 1.0);
   return max(s, lampGlow(P) * 0.8);
 }
 // Turf on the clifftop: gold and warm sage where the low sun lies along it, olive in half-tone, and in shade the dusk's
@@ -100,11 +101,12 @@ float sunOn(vec3 P, vec3 Nn) {
 vec3 turfPaint(float x, float r, float kind) {
   float dry = smoothstep(0.55, 0.8, kind);
   float pick = fract(r * 9.1);
-  vec3 L = pick < 0.4 ? vec3(0.74, 0.66, 0.36) : pick < 0.75 ? vec3(0.6, 0.58, 0.3) : vec3(0.84, 0.66, 0.36);
-  L = mix(L, vec3(0.9, 0.66, 0.34), dry);
-  vec3 M = mix(pick < 0.5 ? vec3(0.36, 0.4, 0.3) : vec3(0.44, 0.42, 0.3), vec3(0.56, 0.48, 0.32), dry);
+  // lit: the low sun's rim on the grass, ochre and apricot; half-tone: olive; shade: olive going lilac
+  vec3 L = pick < 0.4 ? vec3(0.86, 0.64, 0.4) : pick < 0.75 ? vec3(0.74, 0.6, 0.36) : vec3(0.94, 0.7, 0.48);
+  L = mix(L, vec3(0.94, 0.68, 0.42), dry);
+  vec3 M = mix(pick < 0.4 ? vec3(0.38, 0.42, 0.27) : pick < 0.8 ? vec3(0.45, 0.45, 0.29) : vec3(0.47, 0.42, 0.4), vec3(0.56, 0.48, 0.34), dry);
   float sp = fract(r * 5.7);
-  vec3 S = sp < 0.45 ? vec3(0.2, 0.25, 0.27) : sp < 0.85 ? vec3(0.17, 0.23, 0.31) : vec3(0.26, 0.24, 0.38);
+  vec3 S = sp < 0.45 ? vec3(0.22, 0.27, 0.22) : sp < 0.8 ? vec3(0.27, 0.29, 0.3) : vec3(0.32, 0.29, 0.42);
   return paint3(L, M, S, x, r);
 }
 // How lit rock is. Rock wraps the low sun further round than turf, and a face turned away from it is kept in a warm
@@ -155,8 +157,8 @@ vec3 sandPaint(float x, float r, float wet) {
 vec3 bluffPaint(float x, float r) {
   float pick = fract(r * 9.7);
   vec3 L = pick < 0.6 ? vec3(0.97, 0.8, 0.6) : vec3(0.95, 0.68, 0.48);
-  vec3 M = pick < 0.5 ? vec3(0.74, 0.6, 0.6) : vec3(0.68, 0.56, 0.62);
-  vec3 S = pick < 0.5 ? vec3(0.44, 0.44, 0.64) : vec3(0.5, 0.44, 0.6);
+  vec3 M = pick < 0.5 ? vec3(0.7, 0.56, 0.56) : vec3(0.64, 0.52, 0.58);
+  vec3 S = pick < 0.5 ? vec3(0.38, 0.35, 0.52) : vec3(0.44, 0.36, 0.48);
   return paint3(L, M, S, x, r);
 }
 // The lanes down the meadow: trodden sand and earth.
@@ -173,25 +175,46 @@ vec3 flowerPaint(float x, float r) {
 vec3 skySun() { return normalize(vec3(uSunDir.x, 0.022 * length(uSunDir.xz), uSunDir.z)); }
 // The sky with nothing in it: deep ultramarine overhead, cobalt lower, and at the horizon away from the sun the
 // dusk's rose band over the blue grey of the earth's shadow; toward the sun apricot and gold, spreading wide.
+// How far the sunset has spread at v, 0 to 1: half the sky on the sun's side, in broken diagonal banks with the blue
+// showing between them, as ../brand/reference/4.webp lays it.
+float sunsetAt(vec3 v) {
+  vec3 sunDir = skySun();
+  float ang = acos(clamp(dot(v, sunDir), -1.0, 1.0));
+  float up = max(v.y, 0.0);
+  float w = smoothstep(1.35, 0.2, ang + 0.85 * up);
+  float az = atan(v.x, -v.z);
+  float bank = texture(tNoise, vec2(az * 0.55 + up * 0.7, up * 1.6 - az * 0.12)).r;
+  bank = smoothstep(0.4, 0.62, bank + 0.25 * w * w);
+  return clamp(w * mix(0.12, 1.0, bank) + smoothstep(0.4, 0.08, ang) * 0.45, 0.0, 1.0);
+}
+// The sky with nothing in it: ultramarine overhead and cobalt lower away from the sun, a rose band over the blue grey
+// of the earth's shadow at the horizon there; toward the sun the blue turns lilac, then peach, apricot and gold.
 vec3 coastSky(vec3 v) {
   vec3 sunDir = skySun();
   float up = clamp(v.y, -0.2, 1.0);
   float toSun = max(dot(normalize(vec3(v.x, 0.0, v.z) + 1e-5), normalize(vec3(sunDir.x, 0.0, sunDir.z))), 0.0);
   float away = 1.0 - toSun;
   float sunward = max(dot(v, sunDir), 0.0);
-  vec3 high = vec3(0.1, 0.17, 0.46);
-  vec3 mid = vec3(0.2, 0.38, 0.72);
-  vec3 low = mix(vec3(0.48, 0.62, 0.86), vec3(0.98, 0.7, 0.5), smoothstep(0.7, 0.98, toSun));
-  vec3 c = mix(low, mid, smoothstep(0.0, 0.1, up));
-  c = mix(c, high, smoothstep(0.12, 0.6, up));
+  vec3 high = vec3(0.11, 0.21, 0.52);
+  vec3 mid = vec3(0.24, 0.42, 0.75);
+  vec3 low = vec3(0.47, 0.6, 0.84);
+  vec3 c = mix(low, mid, smoothstep(0.0, 0.12, up));
+  c = mix(c, high, smoothstep(0.15, 0.7, up));
   // the rose band, and under it the earth's shadow, on the side away from the sun
-  float band = exp(-pow((up - 0.06) / 0.045, 2.0)) * smoothstep(0.35, 0.9, away);
-  c = mix(c, vec3(0.86, 0.66, 0.7), band * 0.32);
-  c = mix(c, vec3(0.44, 0.54, 0.78), smoothstep(0.025, 0.0, up) * smoothstep(0.4, 0.9, away) * 0.5);
-  // toward the sun the dusk glow: wide and low
-  c = mix(c, vec3(0.99, 0.72, 0.46), pow(toSun, 6.0) * exp(-pow(max(up, 0.0) / 0.1, 1.4)) * 0.85);
-  c = mix(c, vec3(1.0, 0.82, 0.52), pow(toSun, 30.0) * exp(-pow(max(up, 0.0) / 0.04, 1.4)) * 0.8);
-  c = mix(c, vec3(1.0, 0.86, 0.56), smoothstep(0.9975, 0.9995, sunward));
+  float band = exp(-pow((up - 0.06) / 0.05, 2.0)) * smoothstep(0.35, 0.9, away);
+  c = mix(c, vec3(0.88, 0.64, 0.68), band * 0.4);
+  c = mix(c, vec3(0.46, 0.52, 0.78), smoothstep(0.025, 0.0, up) * smoothstep(0.4, 0.9, away) * 0.5);
+  // the sunset: lilac at its edge, peach, apricot, gold by the sun
+  // toward the sun the blue between the banks is lighter and cleaner
+  c = mix(c, vec3(0.48, 0.64, 0.88), smoothstep(1.7, 0.6, acos(clamp(sunward, 0.0, 1.0))) * 0.65);
+  float w = sunsetAt(v);
+  vec3 warm = mix(vec3(0.5, 0.62, 0.86), vec3(0.72, 0.64, 0.8), smoothstep(0.15, 0.32, w));
+  warm = mix(warm, vec3(0.94, 0.64, 0.56), smoothstep(0.3, 0.55, w));
+  warm = mix(warm, vec3(0.97, 0.66, 0.46), smoothstep(0.6, 0.85, w));
+  warm = mix(warm, vec3(1.0, 0.74, 0.46), smoothstep(0.92, 1.0, w));
+  c = mix(c, warm, smoothstep(0.04, 0.25, w));
+  c = mix(c, vec3(1.0, 0.82, 0.52), pow(toSun, 30.0) * exp(-pow(max(up, 0.0) / 0.04, 1.4)) * 0.7);
+  c = mix(c, vec3(1.0, 0.88, 0.6), smoothstep(0.9975, 0.9995, sunward));
   c += vec3(0.22, 0.16, 0.05) * pow(sunward, 1200.0);
   return c;
 }
@@ -239,9 +262,11 @@ vec4 cloudAt(vec3 v, out float sd) {
   vec3 L = normalize(vec3(-sign(rel) * 0.55, 0.32, mix(0.78, -0.5, behind)));
   n = normalize(mix(big, n, 0.4));
   float lam = dot(n, L);
-  float lit = smoothstep(-0.15, 0.65, lam + 0.25 * frac - 0.1);
-  vec3 bright = mix(vec3(0.99, 0.7, 0.56), vec3(1.0, 0.92, 0.8), smoothstep(0.15, 0.85, frac * 0.7 + lam * 0.5));
-  vec3 shade = mix(vec3(0.5, 0.52, 0.76), vec3(0.76, 0.58, 0.66), 0.25 + 0.5 * frac + 0.2 * seed);
+  float lit = smoothstep(-0.05, 0.7, lam + 0.25 * frac - 0.15);
+  // lit by a sun on the horizon: peach and apricot, gold only on the tops, never white
+  float top = smoothstep(0.25, 0.95, frac * 0.7 + lam * 0.5);
+  vec3 bright = mix(mix(vec3(0.92, 0.56, 0.52), vec3(0.96, 0.64, 0.5), seed), vec3(0.98, 0.7, 0.56), top);
+  vec3 shade = mix(vec3(0.5, 0.48, 0.74), vec3(0.74, 0.54, 0.66), 0.2 + 0.5 * frac + 0.2 * seed);
   vec3 c = mix(shade, bright, lit);
   // the foot of a bank sits in its own shade, warm grey violet
   c = mix(c, vec3(0.62, 0.54, 0.68), smoothstep(0.035, 0.0, el - foot) * 0.5 * smoothstep(0.06, 0.15, bulk));

@@ -3,12 +3,11 @@
 //   spray   white flecks thrown up and out from the rail in a carve
 //   dust    ochre and turf flecks off the ground
 //   ring    a ring of strokes lying round where he lands, running outward
-//   streak  long thin strokes rushing past the eye at the edges of the picture while he boosts
 import * as THREE from 'three';
 import { dabMaterial, dabGeometry, dabMesh } from '../oilpaint/dabs.js';
 
-export const KIND = { wake: 0, spray: 1, dust: 2, ring: 3, streak: 4 };
-const LIFE = [1.7, 0.7, 0.8, 0.9, 0.28];
+export const KIND = { wake: 0, spray: 1, dust: 2, ring: 3 };
+const LIFE = [1.7, 0.7, 0.8, 0.9];
 
 export function createWake(shared, count = 640) {
   const pos = new Float32Array(count * 3), dir = new Float32Array(count * 3), data = new Float32Array(count * 4);
@@ -42,16 +41,11 @@ export function createWake(shared, count = 640) {
           c = mix(vec3(0.62, 0.86, 0.88), vec3(0.98, 0.97, 0.93), r.x);
           d.size = vec2(0.07, 0.16) * s;
           d.alive = smoothstep(0.0, 0.3, life);
-        } else if (k == 2) {
+        } else {
           c = r.x < 0.5 ? vec3(0.78, 0.62, 0.38) : r.x < 0.8 ? vec3(0.55, 0.62, 0.3) : vec3(0.92, 0.8, 0.56);
           c *= 0.6 + 0.4 * sunAt(aPos);
           d.size = vec2(0.08, 0.13) * s;
           d.alive = smoothstep(0.0, 0.4, life);
-        } else {
-          c = mix(vec3(0.99, 0.86, 0.66), vec3(0.98, 0.96, 0.92), r.x);
-          d.size = vec2(0.02, 0.9) * s;
-          d.alive = smoothstep(0.0, 0.5, life) * 0.9;
-          d.lift = 0.0;
         }
         d.c1 = hazed(c, aPos);
         d.c2 = d.c1 * 1.08;
@@ -91,7 +85,7 @@ export function createWake(shared, count = 640) {
         if (k === KIND.wake || k === KIND.ring) {
           const drag = Math.exp(-2.5 * dt);
           vel[j] *= drag; vel[j + 2] *= drag;
-        } else if (k !== KIND.streak) {
+        } else {
           vel[j + 1] -= 9 * dt;
           const drag = Math.exp(-1.5 * dt);
           vel[j] *= drag; vel[j + 2] *= drag;

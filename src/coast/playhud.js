@@ -1,10 +1,12 @@
-// The play HUD: the glass over the ride (play.js holds the game; this only shows it). It follows hud.js's regions:
+// The play HUD: the glass over the ride (play.js holds the game; this only shows it). It follows hud.js's regions,
+// and keeps the picture clear: one slim line at the top, the rest small or only there while it matters.
 //   top left     the score and the carry: A and B as two chips with the pairs between them, debt and Leverage as tags
-//   top centre   where to go next, with an arrow and how far, and the first minute's lessons under it; toasts below
-//   left         the highlights (Tab picks the one to steer by), each with its distance and an arrow
+//   top centre   one line: an arrow, where to go next and how far, and the first minute's lesson after it
+//   left         the highlights, only while Tab is being pressed (each press picks the next one to steer by)
 //   bottom left  a round map, north up, with the tokens near him, the rings, the Pool and him
-//   bottom       the keys for riding or walking; the combo just above while in the air
-//   middle       a deposit's count-up and what a product ring just did; the score card at the Pool
+//   bottom       the keys for riding or walking, gone after the first 20 s of riding; the combo above while in the air
+//   low centre   one notice at a time, just over the keys: what a product ring just did, or the way back up the cliff
+//   middle       a deposit's count-up; the score card at the Pool
 // Plain DOM, touched only when what it shows changes. Nothing takes the keyboard's focus; the card's buttons are
 // pressed with the mouse or with Enter and R, read in play.js.
 import './playhud.css';
@@ -24,6 +26,7 @@ const fmt = (n) => Math.round(n).toLocaleString('en-US');
 const metres = (d) => (d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d)} m`);
 const turn = (e, rad) => e.style.setProperty('--turn', `${rad.toFixed(3)}rad`);
 const ACCENT = Object.fromEntries(PRODUCTS.map((p) => [p.key, p.ramp[2]]));
+const B_DOT = ACCENT.trade;
 
 /** onRideOn(), onStartOver(): the score card's two buttons. */
 export function createPlayHud({ onRideOn, onStartOver }) {
@@ -38,12 +41,12 @@ export function createPlayHud({ onRideOn, onStartOver }) {
   const tags = score.querySelector('.tags');
 
   const tc = slot('tc');
-  const objective = el('div', 'play-glass play-yield', `<div class="row">${ARROW}<span class="name"></span><span class="far"></span></div><div class="teach"></div>`);
+  const objective = el('div', 'play-glass play-yield', `${ARROW}<span class="name"></span><span class="far"></span><span class="teach"></span>`);
   objective.id = 'play-objective';
   tc.insertBefore(objective, tc.firstChild);
   const oArrow = objective.querySelector('.play-arrow'), oName = objective.querySelector('.name'), oFar = objective.querySelector('.far'), oTeach = objective.querySelector('.teach');
 
-  const highlights = el('div', 'play-glass play-yield', '<div class="head"><span>Highlights</span><span><b>Tab</b> next</span></div><ol></ol>', document.body);
+  const highlights = el('div', 'play-glass play-yield', '<div class="head"><span>Steer by</span><span><b>Tab</b> next</span></div><ol></ol>', document.body);
   highlights.id = 'play-highlights';
   const hList = highlights.querySelector('ol');
   let hRows = [];
@@ -63,10 +66,26 @@ export function createPlayHud({ onRideOn, onStartOver }) {
   center.id = 'play-center';
   const count = el('div', 'play-glass', '<span class="plus"></span><span class="how"></span>', center);
   count.id = 'play-count';
-  const flashEl = el('div', 'play-glass', '<span class="t"></span>', center);
-  flashEl.id = 'play-flash';
   count.addEventListener('animationend', () => count.classList.remove('on'));
-  flashEl.addEventListener('animationend', () => flashEl.classList.remove('on'));
+  // the notice, low in the middle: a ring's result for a few seconds, or a lasting one (the way back) until it is shut
+  const flashEl = el('div', 'play-glass', '<i class="dot"></i><span class="t"></span>');
+  // it and the goals' toasts take a row of the bottom band over the prompt, so nothing there can cover them
+  slot('bottom').prepend(flashEl);
+  const toasts = document.getElementById('omni-toasts');
+  if (toasts) slot('bottom').prepend(toasts);
+  flashEl.id = 'play-flash';
+  let lasting = null;
+  const notice = (text, accent, held) => {
+    flashEl.style.setProperty('--accent', accent);
+    flashEl.querySelector('.t').innerHTML = text;
+    flashEl.classList.remove('on', 'held'); void flashEl.offsetWidth;
+    flashEl.classList.add(held ? 'held' : 'on');
+    document.body.classList.add('play-notice');
+  };
+  flashEl.addEventListener('animationend', () => {
+    flashEl.classList.remove('on');
+    if (lasting) notice(lasting.text, lasting.accent, true); else document.body.classList.remove('play-notice');
+  });
 
   const card = el('div', '', `<div class="card">
       <div class="eyebrow">${symbolMarkup('omni-mark')}Run banked at the Pool</div>
@@ -89,6 +108,9 @@ export function createPlayHud({ onRideOn, onStartOver }) {
 
   // what was last drawn, so a frame only touches what changed
   const last = {};
+  // the highlights list is open for a few seconds after each Tab; the keys go once he has ridden 20 s
+  let listFor = 0, ridden = 0;
+  const KEYS_FOR = 20;
   const put = (key, value, fn) => { if (last[key] !== value) { last[key] = value; fn(value); } };
 
   // the round map: drawn ten times a second from the map's painted picture, if the map has one to share
@@ -116,7 +138,7 @@ export function createPlayHud({ onRideOn, onStartOver }) {
       if (stroke) { g.lineWidth = r * 0.45; g.strokeStyle = stroke; g.stroke(); }
     };
     const px = size / 150;
-    for (const t of v.near) dot(t.x, t.z, 1.7 * px, t.kind === 'a' ? CREAM : '#0c0c0c', t.kind === 'a' ? null : CREAM);
+    for (const t of v.near) dot(t.x, t.z, 1.7 * px, t.kind === 'a' ? CREAM : B_DOT, '#0c0c0c');
     for (const gt of v.gates) dot(gt.x, gt.z, 5 * px, null, ACCENT[gt.key]);
     dot(v.pool.x, v.pool.z, Math.max(4 * px, v.pool.r * s), null, CREAM);
     // him: an arrow the way he heads
@@ -146,6 +168,10 @@ export function createPlayHud({ onRideOn, onStartOver }) {
           + (v.debt ? `<span class="play-tag" style="--accent: ${ACCENT.lending}">Owe ${v.debt.amount} pairs</span>` : '');
       });
 
+      listFor = Math.max(0, listFor - v.dt);
+      put('list', listFor > 0, (on) => highlights.classList.toggle('open', on));
+      if (v.riding) ridden += v.dt;
+      put('quiet', ridden > KEYS_FOR && v.riding && !v.inPool, (on) => keys.classList.toggle('quiet', on));
       put('oName', v.target.name, (s) => { oName.textContent = s; });
       put('oFar', v.target.far == null ? '' : metres(v.target.far), (s) => { oFar.textContent = s; });
       put('oAccent', v.target.accent, (c) => objective.style.setProperty('--accent', c));
@@ -197,12 +223,21 @@ export function createPlayHud({ onRideOn, onStartOver }) {
       };
       step();
     },
-    /** One line in the middle, in a product's colour: what a ring just did. */
+    /** One line low in the middle, with a dot of a product's colour: what a ring just did. */
     flash(text, accent = CREAM) {
-      flashEl.style.setProperty('--accent', accent);
-      flashEl.querySelector('.t').textContent = text;
-      flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on');
+      notice(text.replace(/[&<>]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt' }[c]};`), accent, false);
     },
+    /** A notice that stays until it is called again with null: { html, accent }. */
+    hold(n) {
+      const key = n ? n.html : null;
+      if ((lasting?.text ?? null) === key) return;
+      lasting = n ? { text: n.html, accent: n.accent ?? CREAM } : null;
+      if (flashEl.classList.contains('on')) return;
+      if (lasting) notice(lasting.text, lasting.accent, true);
+      else { flashEl.classList.remove('held'); document.body.classList.remove('play-notice'); }
+    },
+    /** Tab: the highlights list shows for a while; true if it was already open (so Tab may move on to the next). */
+    expand() { const was = listFor > 0; listFor = 4; return was; },
     /** The score card: c = { score, delivered, bestCombo, used, riding, best, newBest } to show it, or null to shut it. */
     card(c) {
       document.body.dataset.play = c ? 'card' : 'ride';

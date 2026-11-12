@@ -1,7 +1,7 @@
 // Omnipair's things on the headland. Three stones beside the way, one for each product (Leverage, Lending, Trade),
 // each painted as that product's app icon: a rounded tile in the product's gradient with its white glyph, standing on
 // a near-black footing that carries Omnipair's symbol in cream, with a soft light round it in the product's colour.
-// At the point stands the great mark, nine metres of Omnipair's symbol, round which lies the Pool: a ring on the ground
+// At the point stands the great mark, six metres of Omnipair's symbol, round which lies the Pool: a ring on the ground
 // that a rider crosses to bank his pairs (play.js). The mark is near-black until the first deposit; then it turns cream
 // and a column of the three product colours goes up from it, and each deposit makes it flare.
 //
@@ -30,6 +30,7 @@ const LIT_KEY = 'omnipair-world.lit.v1';
 const GATE_R = 2.6, GATE_PAST = 11, POOL_R = 12.5; // a gate's radius and how far north of its stone; the Pool's radius
 const NEAR_GREAT = POOL_R; // anywhere in the Pool round it: where he stops after banking is where E opens its panel
 const GATE_N = 44, POOL_N = 150; // strokes in each gate and in the Pool
+const GREAT_W = 6.2; // the great mark across, metres: tall enough to find from the way, small enough to see past in the Pool
 const N = PRODUCTS.length, G = N; // the stones are 0..N-1; the great mark is N
 const vec = (c) => `vec3(${c.map((x) => x.toFixed(4)).join(', ')})`;
 const RAMPS = PRODUCTS.flatMap((p) => p.ramp.map(rgb));
@@ -140,6 +141,8 @@ export function createOmni(shared, { remember = true } = {}) {
         }
         vec3 cream = PAL_L[${MARK}] * min(tone, 1.04) * (0.95 + 0.15 * x);
         if (k == ${MARK} || k == ${EDGE}) return cream;
+        // the great mark, lit, is cream paint that takes the sun: warm where it faces it, the sky's blue-grey where not
+        vec3 lit = PAL_L[${MARK}] * min(tone, 1.04) * mix(vec3(0.62, 0.62, 0.7), vec3(1.0, 0.95, 0.88), x);
         if (k >= ${PIC0}) {
           // the board's picture: the product's first slide, its gradient field, lit a little by the sun
           int i = k - ${PIC0};
@@ -147,7 +150,7 @@ export function createOmni(shared, { remember = true } = {}) {
           return ramp(i, t) * tone * (0.84 + 0.1 * x);
         }
         // the great mark is near-black stone until it is lit, then cream
-        return mix(dark * 0.8, cream, smoothstep(0.0, 1.0, uOmni[${G}]));
+        return mix(dark * 0.8, lit, smoothstep(0.0, 1.0, uOmni[${G}]));
       }`,
   });
 
@@ -187,14 +190,14 @@ export function createOmni(shared, { remember = true } = {}) {
   }
   // the great mark: standing on its stem on a low plinth, facing back down the headland
   {
-    const wide = 9.4, depth = 1.3, high = wide * SYMBOL.h / SYMBOL.w;
+    const wide = GREAT_W, depth = 0.9, high = wide * SYMBOL.h / SYMBOL.w;
     const m = kit.place(gx, gy - 0.2, gz, gYaw);
-    kit.box(gx, gy + 0.2, gz, 3.6, 0.8, 2.8, 'plinth', { rotY: gYaw, stroke: [0.3, 0.55] });
+    kit.box(gx, gy + 0.2, gz, 2.6, 0.8, 2.0, 'plinth', { rotY: gYaw, stroke: [0.3, 0.55] });
     const mm = at(m, 0, 0.6 + high / 2, -depth / 2);
     kit.add(symbolGeometry(wide, depth), mm, 'great', { density: 0 });
     markStrokes(mm, wide, 'great', depth);
     markStrokes(mm.clone().multiply(new THREE.Matrix4().makeRotationY(Math.PI)), wide, 'great', 0);
-    shared.uBeacon.value[G].set(gx, gy + 1.2, gz, 4.5);
+    shared.uBeacon.value[G].set(gx, gy + 1.2, gz, 3.2);
     great.top = gy + 0.6 + high;
   }
   // the boards: posts, a near-black frame, a cream edge round the picture, the picture with the glyph on it, and
@@ -268,10 +271,10 @@ export function createOmni(shared, { remember = true } = {}) {
         float a = r.z * TAU, rad = 0.2 + 0.8 * sqrt(r.w);
         int k = int(mod(id, ${N}.0));
         d.alive = lvl * smoothstep(0.0, 0.04, t) * (1.0 - smoothstep(0.45, 1.0, t));
-        d.pos = vec3(uBeacon[${G}].x + cos(a) * rad * (1.0 - 0.4 * t), uTop - 1.0 + pow(t, 1.5) * 90.0, uBeacon[${G}].z + sin(a) * rad * (1.0 - 0.4 * t));
+        d.pos = vec3(uBeacon[${G}].x + cos(a) * rad * (1.0 - 0.4 * t), uTop + 1.5 + pow(t, 1.5) * 70.0, uBeacon[${G}].z + sin(a) * rad * (1.0 - 0.4 * t));
         d.dir = vec3((r.w - 0.5) * 0.08, 1.0, 0.0);
         float flare = max(uOmni[${G}] - 1.0, 0.0);
-        d.size = vec2(0.45 + 0.55 * r.y, 5.0 + 9.0 * r.w) * (1.0 + 0.5 * flare);
+        d.size = vec2(0.3 + 0.35 * r.y, 3.0 + 6.0 * r.w) * (1.0 + 0.5 * flare);
         d.pos.xz += vec2(cos(a), sin(a)) * flare * 2.5 * (1.0 - t);
         vec3 base = RAMP[k * 4 + 2], light = RAMP[k * 4 + 3];
         vec3 c = mix(base, light, clamp(t * 1.3 + (r.y - 0.5) * 0.5, 0.0, 1.0));
@@ -325,26 +328,21 @@ export function createOmni(shared, { remember = true } = {}) {
         float a = (k + 0.5 * r.x) / ${POOL_N}.0 * TAU;
         vec2 xz = vec2(${gx.toFixed(3)}, ${gz.toFixed(3)}) + vec2(cos(a), sin(a)) * ${POOL_R.toFixed(2)} * (1.0 + (r.y - 0.5) * 0.06);
         d.pos = vec3(xz.x, heightAt(xz), xz.y);
-        if (mod(k, 2.0) < 0.5) {
-          d.lie = 1.0;
-          d.nrm = normalAt(xz);
-          d.height = 0.06 + 0.02 * r.z;
-          d.dir = vec3(-sin(a), 0.0, cos(a));
-          d.size = vec2(0.7 + 0.3 * r.w, 1.6 + 0.6 * r.x);
-        } else {
-          // every other one stands up, a low fence of strokes that shows over the flowers
-          d.base = 1.0;
-          d.dir = normalize(vec3(-sin(a) * 0.25, 1.0, cos(a) * 0.25));
-          d.size = vec2(0.4 + 0.15 * r.w, 1.1 + 0.5 * r.x);
-          d.lift = 0.1;
-        }
-        // cream between the three products' colours, every fourth stroke one of them in turn
-        int p = int(mod(k, 12.0));
+        // a band of paint laid on the turf round the mark, two strokes deep
+        d.lie = 1.0;
+        d.nrm = normalAt(xz);
+        d.height = 0.06 + 0.02 * r.z;
+        d.dir = vec3(-sin(a), 0.0, cos(a));
+        d.size = vec2(0.45 + 0.2 * r.w, 1.2 + 0.5 * r.x);
+        d.pos.xz += vec2(cos(a), sin(a)) * (mod(k, 2.0) - 0.5) * 0.6;
+        // the three products' colours in turn round the ring, deep, a little cream in it; a light runs round
+        int p = int(mod(floor(k / 2.0), 3.0));
         vec3 cream = ${vec(rgb(CREAM))};
-        vec3 c = mod(k, 4.0) < 0.5 ? RAMP[(p / 4) * 4 + 2] : cream * (0.9 + 0.1 * r.z);
+        vec3 c = mix(RAMP[p * 4 + 1], RAMP[p * 4 + 2], 0.15 + 0.35 * r.z) * 0.9;
+        c = mix(c, cream, step(0.9, r.w) * 0.5);
         float lit = max(uOmni[${G}], 0.35);
         float wave = pow(0.5 + 0.5 * cos(a * 3.0 - uTime * 1.6), 6.0);
-        d.c1 = c * (0.62 + 0.38 * lit + 0.25 * wave) + uFlare * 0.25;
+        d.c1 = c * (0.62 + 0.25 * lit + 0.3 * wave) + uFlare * 0.2;
         d.c2 = mix(d.c1, cream, 0.3);
         d.glaze = 1.0;
       }`,
@@ -370,8 +368,8 @@ export function createOmni(shared, { remember = true } = {}) {
   const solid = [
     ...stones.map((s) => ({ x: s.x, y: s.y + (FOOT.h + TILE + 0.12) / 2, z: s.z, hx: FOOT.w / 2, hy: (FOOT.h + TILE + 0.12) / 2, hz: FOOT.d / 2, yaw: s.yaw })),
     ...boards.map((b) => ({ x: b.x, y: b.cy - 0.2, z: b.z, hx: PIC / 2 + BEZEL, hy: (b.cy - b.y) / 2 + 0.6, hz: 0.1, yaw: b.yaw })),
-    { x: gx, y: gy + 0.2, z: gz, hx: 1.8, hy: 0.6, hz: 1.4, yaw: gYaw },
-    { x: gx, y: gy + 0.6 + 4.5, z: gz, hx: 4.6, hy: 4.5, hz: 0.65, yaw: gYaw },
+    { x: gx, y: gy + 0.2, z: gz, hx: 1.3, hy: 0.6, hz: 1.0, yaw: gYaw },
+    { x: gx, y: gy + 0.6 + GREAT_W * SYMBOL.h / SYMBOL.w / 2, z: gz, hx: GREAT_W / 2, hy: GREAT_W * SYMBOL.h / SYMBOL.w / 2, hz: 0.45, yaw: gYaw },
   ];
 
   // what other parts may listen for: on('browse', key) each time a board is opened or travelled to, on('read', key)

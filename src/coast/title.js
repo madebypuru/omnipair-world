@@ -106,7 +106,7 @@ export function createTitle(ctx) {
     <h2 id="howto-title">How to play</h2>
     <ol>
       <li>Ride the coast on a skim board: fast on water and wet sand, slower on turf.</li>
-      <li>Gather tokens of two kinds, A (cream) and B (dark, ringed).</li>
+      <li>Gather tokens of two kinds, A (cream) and B (orange).</li>
       <li>Only pairs count. Ride into the Pool on the point to bank every pair.</li>
       <li>Ride through a product's ring for its power: Trade, Lending, Leverage.</li>
       <li>Leaps, flips and spins build a combo that multiplies your next deposit.</li>
@@ -157,6 +157,10 @@ export function createTitle(ctx) {
       else if (state === 'leaving') { p = Math.max(0, p - dt / LEAVE); if (p <= 0) state = 'title'; }
       if (state !== 'world') holdInput(true);
       const e = ease(p);
+      // the establishing shot is the coast alone: the tokens and Omnipair's stones, boards and rings come in with the ride
+      const props = state === 'world' || e > 0.6;
+      if (ctx.tokens) ctx.tokens.group.visible = props;
+      if (ctx.omni) ctx.omni.group.visible = props;
       if (state !== 'world' && !ctx.follow?.free) {
         establish(clock);
         const cam = ctx.camera;

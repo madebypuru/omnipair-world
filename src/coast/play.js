@@ -12,7 +12,7 @@ import { RULES, newRun, tick, collect, use, land, crash, deposit, finish, record
 import { createTokens } from './tokens.js';
 import { createPlayHud } from './playhud.js';
 import { PRODUCTS, CREAM } from './brand.js';
-import { START } from './land.js';
+import { START, heightAt, edgeX, wayX } from './land.js';
 
 const SAVE = 'omnipair-world.play.v1';
 const TEACH = 'omnipair-world.teach.v1';
@@ -22,7 +22,7 @@ const NAME = Object.fromEntries(PRODUCTS.map((p) => [p.key, p.name]));
 // the first minute: one line at a time, each gone for good once done
 const LESSONS = [
   { id: 'collect', text: () => 'Hold W to push off and ride through the floating discs' },
-  { id: 'other', text: (s) => `Pairs need one of each: find a ${s.a ? 'dark B' : 'cream A'} token` },
+  { id: 'other', text: (s) => `Pairs need one of each: find ${s.a ? 'an orange B' : 'a cream A'} token` },
   { id: 'pool', text: () => 'Carry your pair into the ring round the great mark' },
   { id: 'ring', text: () => 'Ride through a product ring by its stone for a power-up' },
 ];
@@ -38,6 +38,7 @@ export function createPlay(ctx) {
 
   const tokens = createTokens(shared);
   ctx.scene.add(tokens.group);
+  ctx.tokens = tokens;
   const now = () => ctx.time();
   let run = newRun(now());
   let saved = load(SAVE, null);
@@ -83,7 +84,7 @@ export function createPlay(ctx) {
     const out = apply(deposit(run));
     if (!out.pairs) {
       const { kind } = surplus(run);
-      hud?.flash(run.a + run.b ? `No pairs yet: bring a ${kind === 'a' ? 'dark B' : 'cream A'} to go with your ${kind.toUpperCase()}` : 'Bring tokens in pairs, one A and one B', CREAM);
+      hud?.flash(run.a + run.b ? `No pairs yet: bring ${kind === 'a' ? 'an orange B' : 'a cream A'} to go with your ${kind.toUpperCase()}` : 'Bring tokens in pairs, one A and one B', CREAM);
       return out;
     }
     omni.kindle();
@@ -153,7 +154,11 @@ export function createPlay(ctx) {
   let chosen = 0;
   addEventListener('keydown', (e) => {
     if (e.repeat || ctx.input.paused && !card) return;
-    if (e.code === 'Tab') { e.preventDefault(); chosen = (chosen + 1) % Math.min(targets.length, 9); }
+    if (e.code === 'Tab') {
+      e.preventDefault();
+      // the first press shows the list; while it shows, each press steers by the next
+      if (!hud || hud.expand()) chosen = (chosen + 1) % Math.min(targets.length, 9);
+    } else if (e.code === 'KeyR' && !card && stranded > STRANDED) backToWay();
     else if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !ctx.map?.isOpen) {
       if (card) showCard(false);
       else if (inPool && !MODAL.has(document.body.dataset.ui)) showCard(true);
@@ -177,6 +182,21 @@ export function createPlay(ctx) {
     return { name, far: Math.hypot(dx, dz), turn: Math.atan2(dx * -fz + dz * fx, dx * fx + dz * fz), accent: t.accent };
   }
 
+  // below the west cliff with no way up: after a few seconds R takes him back to the way, level with where he is
+  const STRANDED = 4;
+  let stranded = 0;
+  const below = (p) => p.x < edgeX(p.z) - 2 && heightAt(edgeX(p.z) + 4, p.z) - p.y > 6;
+  function backToWay() {
+    const p = rider(), z = p.z, x = wayX(z);
+    const north = Math.cos(heading()) < 0;
+    ctx.place(x, z, north ? Math.PI : 0);
+    ctx.follow.yaw = north ? Math.PI : 0;
+    ctx.follow.pivot.set(0, 0, 0);
+    stranded = 0;
+    hud?.hold(null);
+    ctx.emit('ride:back', { x, z });
+  }
+
   let pickups = true;
   const born = now();
   let inPool = false, lastLanding = -1e9, wasAir = false, airEnd = -1e9;
@@ -194,6 +214,9 @@ export function createPlay(ctx) {
     land: (e) => ctx.emit('ride:land', e),
     crash: () => ctx.emit('ride:crash'),
     target(i) { chosen = i; },
+    /** Seconds he has been below the cliff, and the way back (R). */
+    stranded: () => stranded,
+    back: () => backToWay(),
     /** Whether tokens are picked up (off for a check that rides past them). */
     pickups(on) { pickups = on; },
     tokens: () => tokens.list.map((tk, i) => ({ ...tk, here: tokens.here(i, now()) })),
@@ -235,7 +258,9 @@ export function createPlay(ctx) {
       if (wasAir && !airborne) airEnd = t;
       wasAir = airborne;
       prev.copy(pos);
+      stranded = below(pos) && !airborne && !card ? stranded + dt : 0;
       if (!hud) return;
+      hud.hold(stranded > STRANDED && !MODAL.has(document.body.dataset.ui) ? { html: '<b>R</b> back up to the way', accent: CREAM } : null);
 
       const lesson = LESSONS.find((l) => !learnt.has(l.id) && !(l.id === 'other' && !run.a && !run.b));
       near.length = 0;
