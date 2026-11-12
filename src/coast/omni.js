@@ -25,10 +25,10 @@ import { SYMBOL, PRODUCTS, GREAT, CREAM, INK, rgb } from './brand.js';
 export { PRODUCTS, GREAT };
 
 const NEAR = 4.5; // how close he must be to a stone's spot (between it and its board) for E to work
-const NEAR_GREAT = 9;
 const KEY = 'omnipair-world.found.v2';
 const LIT_KEY = 'omnipair-world.lit.v1';
 const GATE_R = 2.6, GATE_PAST = 11, POOL_R = 12.5; // a gate's radius and how far north of its stone; the Pool's radius
+const NEAR_GREAT = POOL_R; // anywhere in the Pool round it: where he stops after banking is where E opens its panel
 const GATE_N = 44, POOL_N = 150; // strokes in each gate and in the Pool
 const N = PRODUCTS.length, G = N; // the stones are 0..N-1; the great mark is N
 const vec = (c) => `vec3(${c.map((x) => x.toFixed(4)).join(', ')})`;

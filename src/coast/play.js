@@ -21,7 +21,7 @@ const NAME = Object.fromEntries(PRODUCTS.map((p) => [p.key, p.name]));
 
 // the first minute: one line at a time, each gone for good once done
 const LESSONS = [
-  { id: 'collect', text: () => 'Ride through a floating disc to pick it up' },
+  { id: 'collect', text: () => 'Hold W to push off and ride through the floating discs' },
   { id: 'other', text: (s) => `Pairs need one of each: find a ${s.a ? 'dark B' : 'cream A'} token` },
   { id: 'pool', text: () => 'Carry your pair into the ring round the great mark' },
   { id: 'ring', text: () => 'Ride through a product ring by its stone for a power-up' },

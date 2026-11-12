@@ -282,6 +282,8 @@ function escape() {
 let lostAt = -1e9;
 function lockLost() {
   if (document.pointerLockElement || window.patch || patchTest || !options || menuOpen()) return false;
+  // the score card and the title let go of the mouse themselves: that is not Esc
+  if (document.body.dataset.play === 'card' || document.documentElement.classList.contains('title')) return false;
   if (document.hidden || !document.hasFocus()) return false; // the window went away, and the walk pauses on blur
   lostAt = performance.now();
   escape();

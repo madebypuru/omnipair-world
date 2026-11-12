@@ -45,8 +45,16 @@ export function layTokens(seed = 4041) {
     const kind = rand() < lean(mx, mz) ? 'a' : 'b';
     for (const [x, y, z] of pts) out.push({ x, y, z, kind: rand() < 0.12 ? (kind === 'a' ? 'b' : 'a') : kind, line: id });
   };
+  // the first stretch ahead of where he starts, half way between straight on and the way's bend: one of each kind in
+  // turn, so holding W alone, or following the way, makes pairs in the first few seconds
+  {
+    const pts = [];
+    for (let z = START.z - 10; z > START.z - 36; z -= 3.4) { const x = (START.x + wayX(z)) / 2; pts.push([x, floor(x, z) + 1.1, z]); }
+    const id = `start-${lines++}`;
+    pts.forEach(([x, y, z], k) => out.push({ x, y, z, kind: k % 2 ? 'b' : 'a', line: id }));
+  }
   // trails beside the way, weaving across it
-  for (let z0 = START.z - 18; z0 > POINT.z + 30; z0 -= 34 + 14 * rand()) {
+  for (let z0 = START.z - 44; z0 > POINT.z + 30; z0 -= 34 + 14 * rand()) {
     const pts = [], side = rand() < 0.5 ? -1 : 1, n = 7 + Math.floor(5 * rand());
     for (let k = 0; k < n; k++) {
       const z = z0 - k * 3.2, x = wayX(z) + side * 3 * Math.sin(k / 2.2 + z0);
