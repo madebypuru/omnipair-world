@@ -49,7 +49,7 @@ vec3 waterPaint(vec3 P, vec3 wobble, float shallow, float pick) {
 float calmAt(vec2 xz) { return max(abs(xz.x), abs(xz.y)) < uExtent ? coastAt(xz).b : 0.0; }
 // The lagoon: a mirror. Looking down into it near the eye the sand shows through, pale gold where it is a hand deep
 // and turquoise where it is deeper; farther off it gives back the sky and the cloud banks. ripple tips the mirror.
-vec3 lagoonPaint(vec3 P, vec2 ripple, float pick) {
+vec3 lagoonPaint(vec3 P, vec2 ripple, float pick, bool columns) {
   vec3 v = normalize(P - cameraPosition);
   vec3 r = normalize(vec3(v.x + ripple.x, max(-v.y, 0.002), v.z + ripple.y));
   vec3 sky = duskSky(r);
@@ -60,8 +60,11 @@ vec3 lagoonPaint(vec3 P, vec2 ripple, float pick) {
   vec3 under = mix(sand, turq, 0.35 + 0.65 * smoothstep(0.0, 0.35, depth));
   float fres = 0.3 + 0.7 * pow(1.0 - clamp(-v.y, 0.0, 1.0), 3.0);
   vec3 c = mix(under, sky * 0.97, fres);
-  // each lamp, given back as a short broken column on the water under it, between it and the eye
+  float D0 = distance(P.xz, cameraPosition.xz);
+  // each lamp, given back as a short broken column on the water under it, between it and the eye (only the strokes
+  // laid on the water draw these: the wash under them would work them out for every pixel)
   for (int i = 0; i < ${LAMPS}; i++) {
+    if (!columns || D0 > 260.0) break;
     vec4 L = uLamps[i];
     if (L.w <= 0.0) continue;
     vec2 cl = L.xz - cameraPosition.xz;
@@ -174,7 +177,7 @@ export function createSea(shared) {
       layout(location = 0) out vec4 outC;
       void main() {
         vec3 c = waterPaint(vWorld, vec3(0.0), ${depth ? 'shallowAt(vWorld.xz, seaDepth(vWorld.xz))' : '0.0'}, 0.3) * 0.88;
-        ${depth ? 'float calm = calmAt(vWorld.xz); if (calm > 0.01) c = mix(c, lagoonPaint(vWorld, vec2(0.0), 0.3) * 0.94, smoothstep(0.2, 0.7, calm));' : ''}
+        ${depth ? 'float calm = calmAt(vWorld.xz); if (calm > 0.01) c = mix(c, lagoonPaint(vWorld, vec2(0.0), 0.3, false) * 0.94, smoothstep(0.2, 0.7, calm));' : ''}
         outC = vec4(mix(c, hazed(c, vWorld), 0.4), 1.0);
       }`,
   });
@@ -242,7 +245,7 @@ export function createSea(shared) {
     lay(new THREE.Mesh(new THREE.RingGeometry(inner, outer, 128, 1).rotateX(-Math.PI / 2), wash(false)), order);
     const mine = all.filter((w) => w[4] >= inner && w[4] < outer).sort((p, q) => q[4] - p[4]);
     lay(dabMesh(dabGeometry(mine.length, { aW: [new Float32Array(mine.flatMap((w) => w.slice(0, 4))), 4] }), dabMaterial(shared, {
-      head: COAST + WATER + /* glsl */ `in vec4 aW;`, body: stroke(false), minPx: [6, 12], maxPx: [4000, 4000], cells: [KNIFE, 3],
+      head: COAST + WATER + /* glsl */ `in vec4 aW;`, body: stroke(false), minPx: [6, 12], maxPx: [700, 1600], cells: [KNIFE, 3],
     })), order + 0.1);
   });
 
@@ -327,7 +330,7 @@ export function createSea(shared) {
     }
     const count = list.length / 4;
     group.add(dabMesh(dabGeometry(count, { aW: [new Float32Array(list), 4] }), dabMaterial(shared, {
-      head: COAST + WATER + /* glsl */ `in vec4 aW;`, body: stroke(true), minPx: [6, 10], maxPx: [4000, 4000], cells: [KNIFE, 3],
+      head: COAST + WATER + /* glsl */ `in vec4 aW;`, body: stroke(true), minPx: [6, 10], maxPx: [900, 1800], cells: [KNIFE, 3],
     }), -5));
   }
 
@@ -357,7 +360,7 @@ export function createSea(shared) {
           vec2 w = (texture(tNoise, P.xz / 23.0 + uTime * vec2(0.004, 0.0025)).rg - 0.5);
           vec2 ripple = vec2(w.x * 0.012, w.y * 0.012) + (r.xy - 0.5) * vec2(0.004, 0.004);
           // smeared down the canvas: the reflection a little lower or higher along the stroke
-          vec3 c = lagoonPaint(P, ripple, fract(r.z * 5.1));
+          vec3 c = lagoonPaint(P, ripple, fract(r.z * 5.1), true);
           vec2 q = normalize(P.xz - cameraPosition.xz + 1e-4);
           d.dir = vec3(q.x, 0.0, q.y);
           // across: a little of the canvas; along: long enough to stand as a smear however low the eye

@@ -336,6 +336,8 @@ export function createLand(shared) {
   shared.tCoast = { value: coastTexture };
   shared.uLamps = { value: Array.from({ length: LAMPS }, () => new THREE.Vector4()) };
   lampUniform = shared.uLamps;
+  // the cloud banks, painted once into a picture by sky.js (paint.js duskSky reads it)
+  shared.tSky = { value: null };
   // the air at dusk: lilac blue away from the sun, apricot toward it, a little thicker than the day's
   shared.uHaze.value.setRGB(0.5, 0.52, 0.76);
   shared.uHazeSun.value.setRGB(0.98, 0.68, 0.46);

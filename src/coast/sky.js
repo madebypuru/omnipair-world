@@ -8,7 +8,7 @@ import { COMMON } from '../oilpaint/common.js';
 import { dabMaterial, dabGeometry, dabMesh } from '../oilpaint/dabs.js';
 import { KNIFE } from '../oilpaint/brush.js';
 import { rng } from '../world/noise.js';
-import { COAST, BILLOWS } from './paint.js';
+import { COAST, BILLOWS, SKY_BOX } from './paint.js';
 
 const FAR = 800;
 
@@ -34,6 +34,42 @@ export function createSky(shared) {
   dome.frustumCulled = false;
   dome.renderOrder = -10;
   group.add(dome);
+
+  // The cloud banks are painted once into a picture (paint.js cloudPicture): the dome, the sea and the lagoon read it
+  // instead of working every billow out for each pixel. It is done the first time the dome is drawn, with the
+  // renderer that draws it.
+  const picture = new THREE.WebGLRenderTarget(4096, 1024, { depthBuffer: false, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+  if (shared.tSky) shared.tSky.value = picture.texture;
+  const bake = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: shared,
+    depthTest: false,
+    depthWrite: false,
+    vertexShader: /* glsl */ `out vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+    fragmentShader: /* glsl */ `
+      ${COMMON}
+      ${COAST}
+      in vec2 vUv;
+      layout(location = 0) out vec4 outC;
+      void main() {
+        // cloudAt takes the drift off the azimuth, so it is put on first: the picture is the banks at uTime 0
+        float az = ${SKY_BOX.az0.toFixed(4)} + vUv.x * ${(SKY_BOX.az1 - SKY_BOX.az0).toFixed(4)} + uTime * 0.0004;
+        float el = vUv.y * ${SKY_BOX.el1.toFixed(4)};
+        vec4 cl = cloudAt(vec3(sin(az) * cos(el), sin(el), -cos(az) * cos(el)));
+        outC = vec4(cl.rgb * cl.a, cl.a);
+      }`,
+  }));
+  bake.frustumCulled = false;
+  const bakeScene = new THREE.Scene().add(bake), bakeEye = new THREE.Camera();
+  let painted = false;
+  dome.onBeforeRender = (renderer) => {
+    if (painted) return;
+    painted = true;
+    const was = renderer.getRenderTarget();
+    renderer.setRenderTarget(picture);
+    renderer.render(bakeScene, bakeEye);
+    renderer.setRenderTarget(was);
+  };
 
   const rand = rng(2024);
   // laid from the horizon up: a slab low in the sky reaches up a long way, so the higher ones go over it and the

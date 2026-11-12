@@ -149,6 +149,8 @@ export function createRide(ctx) {
     ctx.emit('ride:dismount', { position: s.pos.clone() });
   }
   function respawn(x, z, heading) {
+    // put far off, the eye goes with him at once rather than sweeping across the coast
+    if (Math.hypot(x - player.feet.x, z - player.feet.z) > 10) { follow.pivot.set(0, 0, 0); follow.yaw = heading; }
     s.mode = 'ride';
     setAt(x, z, heading);
   }
@@ -158,7 +160,8 @@ export function createRide(ctx) {
   function syncBody(teleport = false) {
     const half = player.halfHeight(), r = player.t.radius;
     const p = { x: s.pos.x, y: s.pos.y + LIFT + r + half, z: s.pos.z };
-    if (teleport) { player.body.setTranslation(p, true); physics.propagateModifiedBodyPositionsToColliders(); }
+    // a jump: where it is and where it is going are both here, or the next step sweeps him across the coast
+    if (teleport) { player.body.setTranslation(p, true); player.body.setNextKinematicTranslation(p); physics.propagateModifiedBodyPositionsToColliders(); }
     else player.body.setNextKinematicTranslation(p);
     player.feet.set(s.pos.x, s.pos.y + board.deckY, s.pos.z);
     player.prevFeet.copy(player.feet);
@@ -380,7 +383,9 @@ export function createRide(ctx) {
     const f = player.feet, d = Math.hypot(s.pos.x - f.x, s.pos.z - f.z);
     if (d <= RIDE.reach) return mount();
     if (d <= RIDE.whistle) { s.whistle = { from: s.pos.clone(), t: 0 }; ctx.emit('ride:whistle', { distance: d }); return; }
+    // too far to come over the ground: it is simply under his feet again
     ctx.emit('ride:far', { distance: d });
+    mount();
   }
   function updateWaiting(dt) {
     if (s.whistle) {

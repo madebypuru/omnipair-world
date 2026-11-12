@@ -176,7 +176,9 @@ function air(x, y, z, out) {
 
 function place(x, z, yaw) {
   const y = heightAt(x, z), half = player.halfHeight();
-  player.body.setTranslation({ x, y: y + player.t.radius + half + 0.05, z }, true);
+  const at = { x, y: y + player.t.radius + half + 0.05, z };
+  player.body.setTranslation(at, true);
+  player.body.setNextKinematicTranslation(at);
   physics.propagateModifiedBodyPositionsToColliders();
   player.feet.set(x, y, z); player.prevFeet.copy(player.feet); player.visualY = y;
   player.vel.set(0, 0, 0); player.speed = 0; player.mode = 'move'; player.grounded = true;
@@ -499,6 +501,7 @@ const title = createTitle(ctx); // after the eye is placed (title.update below),
 // --- end modules ---
 window.lab.ctx = ctx;
 window.lab.ride = ride.lab;
+window.lab.rideApi = ride;
 
 // The picture follows the size of its own box, not only the window's resize event: a browser's side panel sliding
 // away can change the box without that event arriving at its final size, and the canvas is then stretched by CSS.

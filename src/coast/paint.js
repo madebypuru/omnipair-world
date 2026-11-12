@@ -55,6 +55,12 @@ function makeBillows() {
   return { towers, all };
 }
 export const BILLOWS = makeBillows();
+/** The part of the sky the banks stand in, radians: what sky.js paints into its picture of them. */
+export const SKY_BOX = {
+  az0: Math.min(...BILLOWS.towers.map((t) => t[0])) - 0.06,
+  az1: Math.max(...BILLOWS.towers.map((t) => t[1])) + 0.06,
+  el1: Math.max(...BILLOWS.towers.map((t) => t[2])) + 0.04,
+};
 const f3 = (x) => x.toFixed(4);
 const BILLOW_GLSL = /* glsl */ `
 const int NB = ${BILLOWS.all.length};
@@ -137,9 +143,10 @@ vec3 wetPaint(float x, float r) {
 vec3 sandPaint(float x, float r, float wet) {
   float pick = fract(r * 11.3);
   vec3 L = pick < 0.45 ? vec3(0.98, 0.84, 0.64) : pick < 0.8 ? vec3(0.97, 0.74, 0.54) : vec3(0.99, 0.66, 0.46);
-  vec3 M = pick < 0.5 ? vec3(0.78, 0.64, 0.6) : vec3(0.7, 0.6, 0.66);
+  vec3 M = pick < 0.5 ? vec3(0.84, 0.66, 0.6) : vec3(0.78, 0.62, 0.64);
+  // the beach lies in the headland's shade at dusk: keep that shade a warm rose lilac, not grey, so it reads as sand
   float sp = fract(r * 6.1);
-  vec3 S = sp < 0.5 ? vec3(0.46, 0.47, 0.66) : sp < 0.85 ? vec3(0.4, 0.44, 0.64) : vec3(0.54, 0.46, 0.6);
+  vec3 S = sp < 0.5 ? vec3(0.62, 0.52, 0.68) : sp < 0.85 ? vec3(0.54, 0.5, 0.7) : vec3(0.68, 0.52, 0.6);
   vec3 c = paint3(L, M, S, x, r);
   return mix(c, c * vec3(0.66, 0.72, 0.9), wet);
 }
@@ -246,9 +253,19 @@ vec4 cloudAt(vec3 v, out float sd) {
   return vec4(c, 1.0);
 }
 vec4 cloudAt(vec3 v) { float sd; return cloudAt(v, sd); }
+// The same banks read from the picture sky.js paints of them once (cloudAt is far too dear for every pixel):
+// azimuth az0..az1 across, elevation 0..el1 up, as they stand at uTime 0.
+uniform sampler2D tSky;
+vec4 cloudPicture(vec3 v) {
+  if (v.y < 0.0) return vec4(0.0);
+  float u = (mod(atan(v.x, -v.z) - uTime * 0.0004 - ${SKY_BOX.az0.toFixed(4)} + 6.28318, 6.28318)) / ${(SKY_BOX.az1 - SKY_BOX.az0).toFixed(4)};
+  float e = asin(clamp(v.y, 0.0, 1.0)) / ${SKY_BOX.el1.toFixed(4)};
+  if (u > 1.0 || e > 1.0) return vec4(0.0);
+  return texture(tSky, vec2(u, e));
+}
 // The sky with its clouds, as the dome and the knife's slabs paint it and the lagoon gives it back.
 vec3 duskSky(vec3 v) {
-  vec4 cl = cloudAt(v);
-  return mix(coastSky(v), cl.rgb, cl.a);
+  vec4 cl = cloudPicture(v); // its colour is already weighted by how much it covers, so its edges stay clean
+  return coastSky(v) * (1.0 - cl.a) + cl.rgb;
 }
 `;

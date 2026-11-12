@@ -47,6 +47,11 @@ await page.evaluate(() => { localStorage.clear(); });
 await page.reload();
 await page.waitForFunction(() => window.lab?.ready && window.lab.game, null, { timeout: 120000 });
 await sleep(1500);
+// every event the Contracts name, counted as it fires
+await page.evaluate(() => {
+  window.__ev = {};
+  for (const n of ['token:collect', 'product:use', 'product:refuse', 'pool:deposit', 'run:finish']) window.lab.ctx.on(n, (d) => (window.__ev[n] ??= []).push(d));
+});
 const start = await game();
 check(start.tokens > 260 && start.tokens < 340, `${start.tokens} tokens laid: ${JSON.stringify(await page.evaluate(() => window.lab.game.tokens().reduce((n, t) => { const k = t.line.split('-')[0]; n[k] = (n[k] ?? 0) + 1; return n; }, {})))}`);
 await shot('01-start');
@@ -142,6 +147,25 @@ await shot('10-card');
 await page.keyboard.press('Enter');
 await sleep(400);
 check(!(await game()).card, 'Enter rides on');
+const ev = await page.evaluate(() => window.__ev);
+const kindsSeen = new Set((ev['token:collect'] ?? []).map((e) => e.kind));
+check(kindsSeen.has('a') && kindsSeen.has('b'), `token:collect fired for both kinds (${ev['token:collect']?.length ?? 0} times)`);
+check(['trade', 'lending', 'leverage'].every((k) => ev['product:use']?.some((e) => e.key === k)) && ev['product:use'].length === 3, `product:use once per product: ${ev['product:use']?.map((e) => e.key).join(', ')}; refused ${ev['product:refuse']?.length ?? 0}`);
+const dep = ev['pool:deposit']?.[0];
+check(dep && dep.pairs === 10 && dep.score === s.score && dep.multiplier === before.multiplier, `pool:deposit ${JSON.stringify(dep)}`);
+check(ev['run:finish']?.[0]?.score === s.score, `run:finish ${JSON.stringify(ev['run:finish'])}`);
+const exposed = await page.evaluate(() => { const g = window.lab.ctx.game; return ['a', 'b', 'pairs', 'score', 'combo', 'multiplier', 'debt'].every((k) => k in g); });
+check(exposed, 'ctx.game has a, b, pairs, score, combo, multiplier, debt');
+// what play.js costs on the CPU per frame: its update alone, timed over many frames while riding
+const cpu = await page.evaluate(() => {
+  const L = window.lab;
+  const t = L.game.tokens().find((k) => k.line.startsWith('way'));
+  L.teleport(t.x + 1, t.z + 30, t.x, t.z);
+  L.game.cpu(true);
+  L.step(1 / 60, 240);
+  return L.game.cpu();
+});
+check(cpu.mean < 1 && cpu.p95 < 1, `play.js update: mean ${cpu.mean.toFixed(3)} ms, p95 ${cpu.p95.toFixed(3)} ms over ${cpu.frames} frames`);
 
 // the best is kept across a reload
 await page.reload();

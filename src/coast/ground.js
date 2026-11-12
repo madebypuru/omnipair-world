@@ -233,7 +233,7 @@ export function createGround(shared) {
   const head = COAST + /* glsl */ `
     float edgeX(float z) { return 22.0 * sin(z / 120.0) + 9.0 * sin(z / 41.0 + 1.3); }
     float wayX(float z) { return edgeX(z) + 9.0 + 2.5 * sin(z / 23.0); }`;
-  const rings = groundRings(shared, { head, body: near, per: 2, n: 192, cell0: 0.4, levels: 4, minPx: [6, 10], maxPx: [4000, 4000], cells: [KNIFE, 6] });
+  const rings = groundRings(shared, { head, body: near, per: 2, n: 168, cell0: 0.4, levels: 4, minPx: [6, 10], maxPx: [4000, 4000], cells: [KNIFE, 6] });
 
   const rand = rng(7171);
   const list = [];
